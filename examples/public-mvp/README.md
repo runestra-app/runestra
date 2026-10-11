@@ -1,0 +1,11 @@
+# Public MVP examples
+
+These examples are intended for trusted repositories and a dedicated runner. They do not sandbox project code. Model prompts and repository content are sent to the selected provider according to that provider's CLI behavior.
+
+Start with `manual-review.yaml` to check a repository without changing it, or `manual-change.yaml` for an explicit request input. These are complete configuration-file examples and can be validated directly with `aorch validate examples/public-mvp/manual-review.yaml`. Copy either `codex-profile.yaml` or `claude-profile.yaml` as the `profiles` mapping in your project configuration. In the GitHub example, change the adapter on both named profiles to select Claude instead of Codex. The profiles deliberately select one local CLI at a time.
+
+`github-issue-to-pr.yaml` shows the shared discovery-to-coding path. Configure a runner connection named `github` with a `token_env` pointing to an environment variable, and set the repository and connection values in the workflow. Use a fine-grained GitHub token with only the repository permissions the selected actions need. GitHub discovery is read-only. The commit, push, and pull request actions are external effects; keep them behind the content approval step and use a test repository first. The sample's test command is a placeholder that must match the repository.
+
+`jira-issue-to-pr.yaml` follows the same approval-gated path for Jira. Set its project `connections.jira` URL and account email, then add a project secret named by `token_env` (the sample uses `JIRA_API_TOKEN`). Replace `PROJECT` in both the discovery source and JQL, set the repository alias, GitHub repository, and base branch, then adjust the label and test command to match your project. The sample discovers unresolved issues carrying the `runestra-ready` label. Jira discovery is read-only; commit, push, and pull request actions are external effects, so use a private test repository first.
+
+The sample requires an explicit `git.verify` command appropriate to the target repository. Replace the placeholder command before use. Never treat successful configuration validation as evidence that an external GitHub or Jira flow has been exercised.

@@ -1,0 +1,6 @@
+profiles:
+  writer:
+    adapter: claude
+    authentication: local
+    sandbox: workspace-write
+    tools: [read, write]

@@ -1,0 +1,176 @@
+{
+  "$id": "urn:runestra:schema:runner",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "adapters": {
+      "items": {
+        "enum": [
+          "action",
+          "shell",
+          "codex",
+          "claude",
+          "openai"
+        ],
+        "type": "string"
+      },
+      "title": "Adapters",
+      "type": "array"
+    },
+    "allow_file_git_sources": {
+      "default": false,
+      "title": "Allow File Git Sources",
+      "type": "boolean"
+    },
+    "api_credentials": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "propertyNames": {
+        "enum": [
+          "codex",
+          "claude",
+          "openai"
+        ]
+      },
+      "title": "Api Credentials",
+      "type": "object"
+    },
+    "capacity": {
+      "default": 1,
+      "minimum": 1,
+      "title": "Capacity",
+      "type": "integer"
+    },
+    "command_allowlist": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Command Allowlist",
+      "type": "array"
+    },
+    "connections": {
+      "additionalProperties": {
+        "additionalProperties": {
+          "type": "string"
+        },
+        "type": "object"
+      },
+      "title": "Connections",
+      "type": "object"
+    },
+    "devices": {
+      "additionalProperties": {
+        "additionalProperties": {
+          "type": "string"
+        },
+        "properties": {
+          "avd": {
+            "type": "string"
+          },
+          "emulator": {
+            "type": "string"
+          },
+          "id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "platform": {
+            "enum": [
+              "ios",
+              "android"
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "type": "object"
+    },
+    "engine_url": {
+      "default": "http://127.0.0.1:8765",
+      "title": "Engine Url",
+      "type": "string"
+    },
+    "environment": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Environment",
+      "type": "array"
+    },
+    "id": {
+      "title": "Id",
+      "type": "string"
+    },
+    "journal": {
+      "default": "runner.sqlite",
+      "format": "path",
+      "title": "Journal",
+      "type": "string"
+    },
+    "log_directory": {
+      "default": "logs",
+      "format": "path",
+      "title": "Log Directory",
+      "type": "string"
+    },
+    "log_max_attempt_bytes": {
+      "default": 52428800,
+      "minimum": 1024,
+      "title": "Log Max Attempt Bytes",
+      "type": "integer"
+    },
+    "log_max_total_bytes": {
+      "default": 2147483648,
+      "minimum": 1024,
+      "title": "Log Max Total Bytes",
+      "type": "integer"
+    },
+    "log_retention_days": {
+      "default": 7,
+      "maximum": 365,
+      "minimum": 1,
+      "title": "Log Retention Days",
+      "type": "integer"
+    },
+    "redact_env": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Redact Env",
+      "type": "array"
+    },
+    "repositories": {
+      "additionalProperties": {
+        "format": "path",
+        "type": "string"
+      },
+      "title": "Repositories",
+      "type": "object"
+    },
+    "resources": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Resources",
+      "type": "array"
+    },
+    "token_file": {
+      "format": "path",
+      "title": "Token File",
+      "type": "string"
+    },
+    "workspace_root": {
+      "default": "workspaces",
+      "format": "path",
+      "title": "Workspace Root",
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "token_file"
+  ],
+  "title": "RunnerConfig",
+  "type": "object"
+}

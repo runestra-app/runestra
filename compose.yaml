@@ -1,0 +1,34 @@
+services:
+  engine:
+    user: "${RUNESTRA_UID:-1000}:${RUNESTRA_GID:-1000}"
+    build:
+      context: .
+    command: ["engine", "/data/engine.yaml", "--host", "0.0.0.0", "--loopback-port-forward"]
+    ports:
+      - "127.0.0.1:8765:8765"
+    volumes:
+      - ./.runtime/local:/data
+      - .:/workspace:ro
+    restart: unless-stopped
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8765/health', timeout=2)"
+      interval: 10s
+      timeout: 3s
+      retries: 6
+
+  runner:
+    user: "${RUNESTRA_UID:-1000}:${RUNESTRA_GID:-1000}"
+    build:
+      context: .
+    command: ["runner", "/data/runner.yaml", "--engine-url", "http://engine:8765", "--allow-insecure-local-network"]
+    profiles: ["container-runner"]
+    volumes:
+      - ./.runtime/local:/data
+    depends_on:
+      engine:
+        condition: service_healthy
+    restart: unless-stopped

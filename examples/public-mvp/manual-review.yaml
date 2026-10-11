@@ -1,0 +1,23 @@
+version: 1
+name: public-mvp-manual-review
+profiles:
+  reviewer:
+    adapter: codex
+    authentication: local
+    sandbox: read-only
+    tools: [read, command]
+workflows:
+  review:
+    input_schema:
+      type: object
+      properties:
+        focus:
+          type: string
+          minLength: 1
+          description: Optional area to prioritize in the review
+      additionalProperties: false
+    steps:
+      inspect:
+        type: agent
+        profile: reviewer
+        prompt: review.md

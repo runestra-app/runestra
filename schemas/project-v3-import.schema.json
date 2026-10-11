@@ -1,0 +1,599 @@
+{
+  "$defs": {
+    "ActionDefinition": {
+      "additionalProperties": false,
+      "properties": {
+        "argv": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Argv",
+          "type": "array"
+        },
+        "files": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Files",
+          "type": "array"
+        },
+        "input_schema": {
+          "additionalProperties": true,
+          "title": "Input Schema",
+          "type": "object"
+        },
+        "result_schema": {
+          "additionalProperties": true,
+          "title": "Result Schema",
+          "type": "object"
+        }
+      },
+      "required": [
+        "argv",
+        "input_schema",
+        "result_schema"
+      ],
+      "title": "ActionDefinition",
+      "type": "object"
+    },
+    "AgentProfile": {
+      "additionalProperties": false,
+      "properties": {
+        "adapter": {
+          "enum": [
+            "codex",
+            "claude",
+            "openai"
+          ],
+          "title": "Adapter",
+          "type": "string"
+        },
+        "authentication": {
+          "enum": [
+            "local",
+            "api"
+          ],
+          "title": "Authentication",
+          "type": "string"
+        },
+        "credential_env": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Credential Env"
+        },
+        "input_price_per_million": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Input Price Per Million"
+        },
+        "max_budget_usd": {
+          "default": 1,
+          "exclusiveMinimum": 0,
+          "title": "Max Budget Usd",
+          "type": "number"
+        },
+        "max_iterations": {
+          "default": 12,
+          "maximum": 100,
+          "minimum": 1,
+          "title": "Max Iterations",
+          "type": "integer"
+        },
+        "max_output_tokens": {
+          "default": 4096,
+          "minimum": 128,
+          "title": "Max Output Tokens",
+          "type": "integer"
+        },
+        "max_total_tokens": {
+          "default": 50000,
+          "minimum": 128,
+          "title": "Max Total Tokens",
+          "type": "integer"
+        },
+        "model": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Model"
+        },
+        "output_price_per_million": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Output Price Per Million"
+        },
+        "sandbox": {
+          "default": "workspace-write",
+          "enum": [
+            "read-only",
+            "workspace-write"
+          ],
+          "title": "Sandbox",
+          "type": "string"
+        },
+        "tools": {
+          "items": {
+            "enum": [
+              "read",
+              "write",
+              "command"
+            ],
+            "type": "string"
+          },
+          "title": "Tools",
+          "type": "array"
+        }
+      },
+      "required": [
+        "adapter",
+        "authentication"
+      ],
+      "title": "AgentProfile",
+      "type": "object"
+    },
+    "Discovery": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "minLength": 1,
+          "title": "Source",
+          "type": "string"
+        },
+        "target_workflow": {
+          "title": "Target Workflow",
+          "type": "string"
+        }
+      },
+      "required": [
+        "target_workflow",
+        "source"
+      ],
+      "title": "Discovery",
+      "type": "object"
+    },
+    "JiraConnection": {
+      "additionalProperties": false,
+      "properties": {
+        "email": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Email"
+        },
+        "token_env": {
+          "minLength": 1,
+          "title": "Token Env",
+          "type": "string"
+        },
+        "url": {
+          "minLength": 1,
+          "title": "Url",
+          "type": "string"
+        }
+      },
+      "required": [
+        "url",
+        "token_env"
+      ],
+      "title": "JiraConnection",
+      "type": "object"
+    },
+    "PeriodicTrigger": {
+      "additionalProperties": false,
+      "properties": {
+        "cron": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cron"
+        },
+        "enabled": {
+          "default": true,
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "interval_seconds": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Interval Seconds"
+        },
+        "timezone": {
+          "default": "UTC",
+          "title": "Timezone",
+          "type": "string"
+        },
+        "type": {
+          "default": "periodic",
+          "enum": [
+            "periodic",
+            "cron"
+          ],
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "title": "PeriodicTrigger",
+      "type": "object"
+    },
+    "Repeat": {
+      "additionalProperties": false,
+      "properties": {
+        "max_iterations": {
+          "maximum": 100,
+          "minimum": 1,
+          "title": "Max Iterations",
+          "type": "integer"
+        },
+        "until": {
+          "title": "Until",
+          "type": "string"
+        }
+      },
+      "required": [
+        "max_iterations",
+        "until"
+      ],
+      "title": "Repeat",
+      "type": "object"
+    },
+    "Step": {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Action"
+        },
+        "approval_timeout_seconds": {
+          "default": 86400,
+          "maximum": 604800,
+          "minimum": 60,
+          "title": "Approval Timeout Seconds",
+          "type": "integer"
+        },
+        "approvers": {
+          "items": {
+            "enum": [
+              "owner",
+              "admin"
+            ],
+            "type": "string"
+          },
+          "title": "Approvers",
+          "type": "array"
+        },
+        "argv": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Argv"
+        },
+        "command": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Command"
+        },
+        "content_ref": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Content Ref"
+        },
+        "input_refs": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Input Refs",
+          "type": "object"
+        },
+        "inputs": {
+          "additionalProperties": true,
+          "title": "Inputs",
+          "type": "object"
+        },
+        "needs": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Needs",
+          "type": "array"
+        },
+        "profile": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Profile"
+        },
+        "prompt": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Prompt"
+        },
+        "prompt_text": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Prompt Text"
+        },
+        "repeat": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Repeat"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "resources": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Resources",
+          "type": "array"
+        },
+        "result_schema": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Result Schema"
+        },
+        "skills": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Skills",
+          "type": "array"
+        },
+        "summary_ref": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Summary Ref"
+        },
+        "timeout_seconds": {
+          "default": 300,
+          "minimum": 1,
+          "title": "Timeout Seconds",
+          "type": "integer"
+        },
+        "type": {
+          "enum": [
+            "action",
+            "shell",
+            "agent",
+            "approval"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
+        "when": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "When"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "Step",
+      "type": "object"
+    },
+    "Workflow": {
+      "additionalProperties": false,
+      "properties": {
+        "discovery": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Discovery"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "input_schema": {
+          "additionalProperties": true,
+          "title": "Input Schema",
+          "type": "object"
+        },
+        "interval_seconds": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Interval Seconds"
+        },
+        "max_active_runs": {
+          "default": 1,
+          "minimum": 1,
+          "title": "Max Active Runs",
+          "type": "integer"
+        },
+        "steps": {
+          "additionalProperties": {
+            "$ref": "#/$defs/Step"
+          },
+          "minProperties": 1,
+          "title": "Steps",
+          "type": "object"
+        },
+        "triggers": {
+          "items": {
+            "$ref": "#/$defs/PeriodicTrigger"
+          },
+          "title": "Triggers",
+          "type": "array"
+        }
+      },
+      "required": [
+        "steps"
+      ],
+      "title": "Workflow",
+      "type": "object"
+    }
+  },
+  "$id": "urn:runestra:schema:project-v3-import",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "actions": {
+      "additionalProperties": {
+        "$ref": "#/$defs/ActionDefinition"
+      },
+      "type": "object"
+    },
+    "connections": {
+      "additionalProperties": {
+        "$ref": "#/$defs/JiraConnection"
+      },
+      "type": "object"
+    },
+    "imports": {
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "profiles": {
+      "additionalProperties": {
+        "$ref": "#/$defs/AgentProfile"
+      },
+      "type": "object"
+    },
+    "workflows": {
+      "additionalProperties": {
+        "$ref": "#/$defs/Workflow"
+      },
+      "type": "object"
+    }
+  },
+  "type": "object"
+}

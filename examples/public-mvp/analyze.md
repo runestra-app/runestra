@@ -1,0 +1,1 @@
+Read the supplied GitHub issue and relevant repository files. Identify the requested behavior, acceptance criteria, risks, and any ambiguity. Do not modify files. Return a concise implementation plan and clearly state whether the issue is sufficiently specified to proceed.

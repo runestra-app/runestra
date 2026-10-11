@@ -1,0 +1,1 @@
+Implement the agreed plan in the assigned workspace. On a repair iteration, address the review findings and test failures included in the context. Do not commit, push or create PRs. Return a concise description of the changes in outputs_json.

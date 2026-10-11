@@ -1,0 +1,92 @@
+version: 1
+name: public-mvp-jira-issue
+connections:
+  jira:
+    url: https://example.atlassian.net
+    email: jira-bot@example.com
+    token_env: JIRA_API_TOKEN
+profiles:
+  analyst:
+    adapter: codex
+    authentication: local
+    sandbox: read-only
+    tools: [read, command]
+  implementer:
+    adapter: codex
+    authentication: local
+    sandbox: workspace-write
+workflows:
+  discover:
+    interval_seconds: 300
+    discovery:
+      source: jira:PROJECT
+      target_workflow: coding
+    steps:
+      issues:
+        type: action
+        action: jira.discover
+        inputs:
+          connection: jira
+          jql: project = PROJECT AND labels = "runestra-ready" AND statusCategory != Done
+  coding:
+    max_active_runs: 1
+    steps:
+      prepare:
+        type: action
+        action: git.prepare
+        inputs:
+          repository: target
+          base: main
+        input_refs:
+          item_id: inputs.work_item.id
+      inspect:
+        type: agent
+        profile: analyst
+        prompt: analyze.md
+        needs: [prepare]
+      implement:
+        type: action
+        action: coding.repair
+        needs: [inspect]
+        timeout_seconds: 1800
+        inputs:
+          implement_profile: implementer
+          implement_prompt: implement.md
+          review_profile: analyst
+          review_prompt: review.md
+          max_iterations: 3
+          test_commands:
+            - [python3, -m, pytest, -q]
+      verify:
+        type: action
+        action: git.verify
+        needs: [implement]
+        inputs:
+          commands:
+            - [python3, -m, pytest, -q]
+      approve:
+        type: approval
+        needs: [verify]
+        summary_ref: steps.verify.summary
+        content_ref: steps.verify.outputs.fingerprint
+      commit:
+        type: action
+        action: git.commit
+        needs: [approve]
+        inputs:
+          message: Implement approved Jira issue
+        input_refs:
+          approval_fingerprint: steps.approve.outputs.content_fingerprint
+      push:
+        type: action
+        action: git.push
+        needs: [commit]
+      pull_request:
+        type: action
+        action: git.pr
+        needs: [push]
+        inputs:
+          repository: OWNER/REPOSITORY
+          base: main
+          title: Implement approved Jira issue
+          body: Prepared by Runestra after automated review and human approval.

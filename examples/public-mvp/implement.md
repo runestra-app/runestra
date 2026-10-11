@@ -1,0 +1,1 @@
+Implement the supplied issue in the current isolated worktree. Follow repository conventions, make the smallest complete change, and add or update meaningful tests where appropriate. Do not commit, push, merge, or change files unrelated to the issue. Report changed files and any unresolved concerns.

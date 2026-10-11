@@ -1,0 +1,16 @@
+version: 1
+name: document-analysis
+profiles:
+  analyst:
+    adapter: claude
+    authentication: local
+workflows:
+  document:
+    steps:
+      analyze:
+        type: agent
+        profile: analyst
+        prompt: analyze.md
+        skills: [skills/summarize]
+        inputs:
+          document: document.txt

@@ -1,0 +1,1 @@
+Review the current workspace against the ticket requirements. Inspect code and the diff. Do not edit code. Return outputs_json containing approved true or false and concrete findings. Previous approval does not apply after a code change.

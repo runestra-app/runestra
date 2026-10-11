@@ -1,0 +1,9 @@
+version: 3
+name: modular-config
+imports:
+  - profiles/reviewers.yaml
+  - profiles/writers.yaml
+  - actions/checks.yaml
+  - actions/reports.yaml
+  - workflows/review.yaml
+  - workflows/report.yaml

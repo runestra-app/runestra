@@ -1,0 +1,24 @@
+version: 1
+name: local-actions
+workflows:
+  commands:
+    steps:
+      first:
+        type: action
+        argv: [python3, '-c', 'print("first")']
+      second:
+        type: shell
+        needs: [first]
+        when: steps.first.status == 'succeeded'
+        command: 'printf "second\n"'
+  slow:
+    steps:
+      wait:
+        type: shell
+        command: 'sleep 10; printf "finished\n"'
+        timeout_seconds: 20
+  failure:
+    steps:
+      fail:
+        type: action
+        argv: [python3, '-c', 'import sys; print("intentional failure", file=sys.stderr); sys.exit(1)']

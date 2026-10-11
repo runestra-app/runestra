@@ -1,0 +1,18 @@
+actions:
+  docs.check:
+    argv: [python3, '@package/scripts/check.py']
+    files: [scripts/check.py]
+    input_schema:
+      type: object
+      properties:
+        message: {type: string, minLength: 1}
+      required: [message]
+      additionalProperties: false
+    result_schema:
+      type: object
+      properties:
+        status: {type: string, enum: [succeeded]}
+        summary: {type: string}
+        outputs: {type: object}
+      required: [status, summary, outputs]
+      additionalProperties: false

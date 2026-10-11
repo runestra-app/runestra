@@ -1,0 +1,908 @@
+{
+  "coding.repair": {
+    "aliases": [],
+    "capability": "action",
+    "contract_version": 2,
+    "description": "Iterate implementation, review and tests in the run workspace.",
+    "external_effect": false,
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "implement_profile": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "implement_prompt": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "max_iterations": {
+          "maximum": 20,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "review_profile": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "review_prompt": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "skills": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "test_commands": {
+          "items": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "minItems": 1,
+          "type": "array"
+        }
+      },
+      "required": [
+        "implement_profile",
+        "implement_prompt",
+        "review_profile",
+        "review_prompt",
+        "test_commands"
+      ],
+      "type": "object"
+    },
+    "name": "coding.repair",
+    "output_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "fingerprint": {
+          "pattern": "^[a-f0-9]{64}$",
+          "type": "string"
+        },
+        "verified": {
+          "const": true,
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "verified",
+        "fingerprint"
+      ],
+      "type": "object"
+    },
+    "workspace": true
+  },
+  "core.needs_input": {
+    "aliases": [],
+    "capability": "action",
+    "contract_version": 1,
+    "description": "Stop the workflow and request human input.",
+    "external_effect": false,
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "ambiguities": {
+          "items": {
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "summary": {
+          "type": "string"
+        }
+      },
+      "required": [],
+      "type": "object"
+    },
+    "name": "core.needs_input",
+    "output_schema": {
+      "additionalProperties": true,
+      "type": "object"
+    },
+    "workspace": false
+  },
+  "device.test": {
+    "aliases": [],
+    "capability": "action",
+    "contract_version": 1,
+    "description": "Run commands on a configured device and collect artifacts.",
+    "external_effect": false,
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "commands": {
+          "items": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "device": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "device",
+        "commands"
+      ],
+      "type": "object"
+    },
+    "name": "device.test",
+    "output_schema": {
+      "additionalProperties": true,
+      "type": "object"
+    },
+    "workspace": false
+  },
+  "git.branch": {
+    "aliases": [],
+    "capability": "action",
+    "contract_version": 2,
+    "description": "Create or resume a run branch in the pinned project checkout.",
+    "external_effect": false,
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {},
+      "required": [],
+      "type": "object"
+    },
+    "name": "git.branch",
+    "output_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "branch": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "mode": {
+          "enum": [
+            "checkout"
+          ],
+          "type": "string"
+        },
+        "owner": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "repository": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "starting_commit": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "repository",
+        "branch",
+        "starting_commit",
+        "mode",
+        "owner"
+      ],
+      "type": "object"
+    },
+    "workspace": true
+  },
+  "git.commit": {
+    "aliases": [],
+    "capability": "action",
+    "contract_version": 3,
+    "description": "Commit verified changes, optionally limited to declared paths.",
+    "external_effect": false,
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "approval_fingerprint": {
+          "pattern": "^[a-f0-9]{64}$",
+          "type": "string"
+        },
+        "message": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "paths": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array"
+        }
+      },
+      "required": [
+        "message"
+      ],
+      "type": "object"
+    },
+    "name": "git.commit",
+    "output_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "branch": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "commit": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "commit",
+        "branch"
+      ],
+      "type": "object"
+    },
+    "workspace": true
+  },
+  "git.pr": {
+    "aliases": [],
+    "capability": "action",
+    "contract_version": 2,
+    "description": "Create or reconcile a GitHub pull request.",
+    "external_effect": true,
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "base": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "body": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "remote": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "repository": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "title": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "repository",
+        "base",
+        "title",
+        "body"
+      ],
+      "type": "object"
+    },
+    "name": "git.pr",
+    "output_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "base": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "branch": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "commit": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "external_effects": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "key": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "kind": {
+                "const": "git.pr"
+              },
+              "provider_id": {
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "key",
+              "kind",
+              "provider_id"
+            ],
+            "type": "object"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "head_commit": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "number": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "pull_request": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "pull_request",
+        "number",
+        "branch",
+        "commit",
+        "head_commit",
+        "base",
+        "external_effects"
+      ],
+      "type": "object"
+    },
+    "workspace": true
+  },
+  "git.prepare": {
+    "aliases": [],
+    "capability": "action",
+    "contract_version": 1,
+    "description": "Create an isolated worktree for another configured repository.",
+    "external_effect": false,
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "base": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "item_id": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "repository": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "repository"
+      ],
+      "type": "object"
+    },
+    "name": "git.prepare",
+    "output_schema": {
+      "additionalProperties": true,
+      "type": "object"
+    },
+    "workspace": true
+  },
+  "git.push": {
+    "aliases": [],
+    "capability": "action",
+    "contract_version": 2,
+    "description": "Push the verified commit and confirm the remote ref.",
+    "external_effect": true,
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "remote": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [],
+      "type": "object"
+    },
+    "name": "git.push",
+    "output_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "branch": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "commit": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "remote": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "remote",
+        "branch",
+        "commit"
+      ],
+      "type": "object"
+    },
+    "workspace": true
+  },
+  "git.verify": {
+    "aliases": [],
+    "capability": "action",
+    "contract_version": 3,
+    "description": "Run checks and record the verified workspace fingerprint.",
+    "external_effect": false,
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "commands": {
+          "items": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "only_paths": {
+          "type": "boolean"
+        },
+        "paths": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array"
+        }
+      },
+      "required": [
+        "commands"
+      ],
+      "type": "object"
+    },
+    "name": "git.verify",
+    "output_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "fingerprint": {
+          "pattern": "^[a-f0-9]{64}$",
+          "type": "string"
+        },
+        "verified": {
+          "const": true,
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "verified",
+        "fingerprint"
+      ],
+      "type": "object"
+    },
+    "workspace": true
+  },
+  "github.discover": {
+    "aliases": [],
+    "capability": "action",
+    "contract_version": 2,
+    "description": "Find GitHub issues for a workflow.",
+    "external_effect": false,
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "assignee": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "connection": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "labels": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "repository": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "state": {
+          "enum": [
+            "open",
+            "closed",
+            "all"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "connection",
+        "repository"
+      ],
+      "type": "object"
+    },
+    "name": "github.discover",
+    "output_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "work_items": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "description": {
+                "type": "string"
+              },
+              "id": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "labels": {
+                "items": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "status": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "title": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "updated": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "url": {
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "id"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "work_items"
+      ],
+      "type": "object"
+    },
+    "workspace": false
+  },
+  "github.get": {
+    "aliases": [],
+    "capability": "action",
+    "contract_version": 2,
+    "description": "Read one GitHub issue.",
+    "external_effect": false,
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "connection": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "issue": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "repository": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "connection",
+        "repository",
+        "issue"
+      ],
+      "type": "object"
+    },
+    "name": "github.get",
+    "output_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "work_item": {
+          "additionalProperties": false,
+          "properties": {
+            "description": {
+              "type": "string"
+            },
+            "id": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "labels": {
+              "items": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "status": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "title": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "updated": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "url": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "work_item"
+      ],
+      "type": "object"
+    },
+    "workspace": false
+  },
+  "github.open_pr": {
+    "aliases": [
+      "git.pr"
+    ],
+    "capability": "action",
+    "contract_version": 2,
+    "description": "Create or reconcile a GitHub pull request.",
+    "external_effect": true,
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "base": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "body": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "remote": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "repository": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "title": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "repository",
+        "base",
+        "title",
+        "body"
+      ],
+      "type": "object"
+    },
+    "name": "github.open_pr",
+    "output_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "base": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "branch": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "commit": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "external_effects": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "key": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "kind": {
+                "const": "git.pr"
+              },
+              "provider_id": {
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "key",
+              "kind",
+              "provider_id"
+            ],
+            "type": "object"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "head_commit": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "number": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "pull_request": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "pull_request",
+        "number",
+        "branch",
+        "commit",
+        "head_commit",
+        "base",
+        "external_effects"
+      ],
+      "type": "object"
+    },
+    "workspace": false
+  },
+  "jira.comment": {
+    "aliases": [],
+    "capability": "action",
+    "contract_version": 1,
+    "description": "Add a reconciled comment to a Jira issue.",
+    "external_effect": true,
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "ambiguities": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "question": {
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "question"
+            ],
+            "type": "object"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "connection": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "issue": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "connection",
+        "issue",
+        "ambiguities"
+      ],
+      "type": "object"
+    },
+    "name": "jira.comment",
+    "output_schema": {
+      "additionalProperties": true,
+      "type": "object"
+    },
+    "workspace": false
+  },
+  "jira.discover": {
+    "aliases": [],
+    "capability": "action",
+    "contract_version": 1,
+    "description": "Find Jira work items for a workflow.",
+    "external_effect": false,
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "assignee": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "connection": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "jql": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "project": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "status": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "connection"
+      ],
+      "type": "object"
+    },
+    "name": "jira.discover",
+    "output_schema": {
+      "additionalProperties": true,
+      "type": "object"
+    },
+    "workspace": false
+  },
+  "jira.transition": {
+    "aliases": [],
+    "capability": "action",
+    "contract_version": 1,
+    "description": "Transition a Jira issue to a workflow status.",
+    "external_effect": true,
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "connection": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "issue": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "status": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "connection",
+        "issue",
+        "status"
+      ],
+      "type": "object"
+    },
+    "name": "jira.transition",
+    "output_schema": {
+      "additionalProperties": true,
+      "type": "object"
+    },
+    "workspace": false
+  }
+}

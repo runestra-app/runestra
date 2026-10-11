@@ -1,0 +1,13 @@
+database: engine.sqlite
+artifacts: artifacts
+session_key_file: session.key
+secure_cookies: true
+public_base_url: "https://REPLACE_WITH_PUBLIC_HOST"
+registration_enabled: true
+session_ttl_seconds: 28800
+magic_link_ttl_seconds: 900
+invitation_ttl_seconds: 604800
+secrets_file: auth-secrets.yaml
+email_from: "no-reply@runestra.app"
+google_client_id: "DUMMY_GOOGLE_CLIENT_ID"
+github_client_id: "DUMMY_GITHUB_CLIENT_ID"

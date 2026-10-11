@@ -1,0 +1,35 @@
+{
+  "$id": "urn:runestra:schema:actions",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": {
+    "properties": {
+      "aliases": {
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "contract_version": {
+        "minimum": 1,
+        "type": "integer"
+      },
+      "description": {
+        "type": "string"
+      },
+      "input_schema": {
+        "type": "object"
+      },
+      "output_schema": {
+        "type": "object"
+      }
+    },
+    "required": [
+      "contract_version",
+      "description",
+      "input_schema",
+      "output_schema"
+    ],
+    "type": "object"
+  },
+  "type": "object"
+}

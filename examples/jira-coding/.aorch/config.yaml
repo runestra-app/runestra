@@ -1,0 +1,106 @@
+version: 1
+name: jira-coding
+connections:
+  jira-test:
+    url: https://example.atlassian.net
+    email: jira-bot@example.com
+    token_env: JIRA_API_TOKEN
+profiles:
+  analyst:
+    adapter: codex
+    authentication: local
+    sandbox: read-only
+    tools: [read, command]
+  coder:
+    adapter: codex
+    authentication: local
+  reviewer:
+    adapter: claude
+    authentication: local
+    sandbox: read-only
+    tools: [read, command]
+workflows:
+  discovery:
+    interval_seconds: 300
+    discovery:
+      source: jira
+      target_workflow: coding
+    steps:
+      query:
+        type: action
+        action: jira.discover
+        inputs:
+          connection: jira-test
+          assignee: REPLACE_WITH_ACCOUNT_ID
+          status: Ready
+          project: TEST
+  coding:
+    max_active_runs: 1
+    steps:
+      prepare:
+        type: action
+        action: git.prepare
+        inputs:
+          repository: test-repo
+          base: main
+        input_refs:
+          item_id: inputs.work_item.id
+      analyze:
+        type: agent
+        profile: analyst
+        prompt: analyze.md
+        needs: [prepare]
+      questions:
+        type: action
+        action: jira.comment
+        needs: [analyze]
+        when: steps.analyze.outputs.decision == 'needs_input'
+        inputs:
+          connection: jira-test
+        input_refs:
+          issue: inputs.work_item.id
+          ambiguities: steps.analyze.outputs.ambiguities
+      wait_for_input:
+        type: action
+        action: core.needs_input
+        needs: [questions]
+        inputs:
+          summary: Clarification questions recorded; retry with a fresh snapshot on the next discovery.
+      plan:
+        type: agent
+        profile: analyst
+        prompt: plan.md
+        needs: [analyze]
+        when: steps.analyze.outputs.decision == 'ready'
+      repair:
+        type: action
+        action: coding.repair
+        needs: [plan]
+        timeout_seconds: 1800
+        inputs:
+          implement_profile: coder
+          implement_prompt: implement.md
+          review_profile: reviewer
+          review_prompt: review.md
+          max_iterations: 3
+          test_commands:
+            - [python3, '-m', unittest, discover]
+      commit:
+        type: action
+        action: git.commit
+        needs: [repair]
+        inputs:
+          message: Implement verified ticket requirements
+      push:
+        type: action
+        action: git.push
+        needs: [commit]
+      pr:
+        type: action
+        action: git.pr
+        needs: [push]
+        inputs:
+          repository: REPLACE_OWNER/REPLACE_TEST_REPOSITORY
+          base: main
+          title: Implement verified ticket requirements
+          body: Requirements were implemented, reviewed and tested by the configured workflow. Inspect the run artifacts and diff before merging.

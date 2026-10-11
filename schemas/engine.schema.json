@@ -1,0 +1,135 @@
+{
+  "$id": "urn:runestra:schema:engine",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "admin_token_file": {
+      "anyOf": [
+        {
+          "format": "path",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Admin Token File"
+    },
+    "artifacts": {
+      "default": "artifacts",
+      "format": "path",
+      "title": "Artifacts",
+      "type": "string"
+    },
+    "database": {
+      "default": "engine.sqlite",
+      "format": "path",
+      "title": "Database",
+      "type": "string"
+    },
+    "email_from": {
+      "default": "no-reply@runestra.app",
+      "title": "Email From",
+      "type": "string"
+    },
+    "git_allowed_hosts": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Git Allowed Hosts",
+      "type": "array"
+    },
+    "github_client_id": {
+      "default": "DUMMY_GITHUB_CLIENT_ID",
+      "title": "Github Client Id",
+      "type": "string"
+    },
+    "google_client_id": {
+      "default": "DUMMY_GOOGLE_CLIENT_ID",
+      "title": "Google Client Id",
+      "type": "string"
+    },
+    "host": {
+      "default": "127.0.0.1",
+      "title": "Host",
+      "type": "string"
+    },
+    "invitation_ttl_seconds": {
+      "default": 604800,
+      "maximum": 2592000,
+      "minimum": 3600,
+      "title": "Invitation Ttl Seconds",
+      "type": "integer"
+    },
+    "local_auth": {
+      "default": false,
+      "title": "Local Auth",
+      "type": "boolean"
+    },
+    "loopback_port_forward": {
+      "default": false,
+      "title": "Loopback Port Forward",
+      "type": "boolean"
+    },
+    "magic_link_ttl_seconds": {
+      "default": 900,
+      "maximum": 3600,
+      "minimum": 60,
+      "title": "Magic Link Ttl Seconds",
+      "type": "integer"
+    },
+    "port": {
+      "default": 8765,
+      "maximum": 65535,
+      "minimum": 1,
+      "title": "Port",
+      "type": "integer"
+    },
+    "public_base_url": {
+      "default": "http://127.0.0.1:8765",
+      "title": "Public Base Url",
+      "type": "string"
+    },
+    "registration_enabled": {
+      "default": true,
+      "title": "Registration Enabled",
+      "type": "boolean"
+    },
+    "secrets_file": {
+      "anyOf": [
+        {
+          "format": "path",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Secrets File"
+    },
+    "secure_cookies": {
+      "default": false,
+      "title": "Secure Cookies",
+      "type": "boolean"
+    },
+    "session_key_file": {
+      "format": "path",
+      "title": "Session Key File",
+      "type": "string"
+    },
+    "session_ttl_seconds": {
+      "default": 28800,
+      "maximum": 2592000,
+      "minimum": 300,
+      "title": "Session Ttl Seconds",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "session_key_file"
+  ],
+  "title": "EngineConfig",
+  "type": "object"
+}

@@ -1,0 +1,4 @@
+codex:
+  adapter: codex
+  authentication: local
+  sandbox: workspace-write

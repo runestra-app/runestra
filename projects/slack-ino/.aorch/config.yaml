@@ -1,0 +1,35 @@
+version: 1
+name: slack-ino
+profiles:
+  claude:
+    adapter: claude
+    authentication: local
+    tools:
+      - read
+    sandbox: read-only
+workflows:
+  analyze:
+    steps:
+      clone:
+        type: shell
+        command: git clone git@github.com:inovait/slack-ino.git code
+        timeout_seconds: 900
+      claude:
+        type: agent
+        needs:
+          - clone
+        profile: claude
+        prompt: analyze.md
+        timeout_seconds: 600
+      output:
+        type: action
+        needs:
+          - claude
+        argv:
+          - python3
+          - -c
+          - >-
+            import json,sys; step=json.load(sys.stdin)['steps']['claude'];
+            outputs=step.get('outputs',{}); print(step.get('summary',''));
+            print(json.dumps({k:outputs[k] for k in ('decision','uses_graphcode','ambiguities') if k in outputs},ensure_ascii=False,indent=2))
+        timeout_seconds: 30

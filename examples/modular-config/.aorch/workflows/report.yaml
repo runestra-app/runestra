@@ -1,0 +1,13 @@
+workflows:
+  report:
+    steps:
+      write_report:
+        type: agent
+        profile: writer
+        prompt: prompts/report.md
+      capture:
+        type: action
+        action: docs.capture
+        needs: [write_report]
+        input_refs:
+          message: steps.write_report.outputs.summary

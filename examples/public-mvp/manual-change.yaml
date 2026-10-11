@@ -1,0 +1,22 @@
+version: 1
+name: public-mvp-manual-change
+profiles:
+  implementer:
+    adapter: codex
+    authentication: local
+workflows:
+  change:
+    input_schema:
+      type: object
+      properties:
+        request:
+          type: string
+          minLength: 10
+          maxLength: 10000
+      required: [request]
+      additionalProperties: false
+    steps:
+      implement:
+        type: agent
+        profile: implementer
+        prompt: implement-request.md

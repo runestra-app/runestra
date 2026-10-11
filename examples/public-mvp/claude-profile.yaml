@@ -1,0 +1,4 @@
+claude:
+  adapter: claude
+  authentication: local
+  sandbox: workspace-write

@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <link rel="icon" href="data:,">
+  <title>Runestra</title>
+  <link rel="stylesheet" href="/static/styles.css">
+  <script src="/static/app.js" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="Runestra home">
+      <span class="brand-mark" aria-hidden="true">R</span>
+      <span>Runestra</span>
+    </a>
+    <div class="topbar-right">
+      <span id="message" class="connection" role="status" aria-live="polite"></span>
+      <span id="local-auth-label" class="local-auth-label hidden">LOCAL SIGN-IN</span>
+      <button id="theme-toggle" class="icon-button" type="button" aria-label="Switch color theme" title="Switch color theme">◐</button>
+      <form id="login" class="login-form">
+        <label class="sr-only" for="email">Email</label>
+        <input type="email" id="email" name="email" placeholder="Email address" autocomplete="email" required>
+        <button class="button button-primary" type="submit">Email me a sign-in link</button>
+      </form>
+      <button id="local-login" class="button button-primary hidden" type="button">Continue locally</button>
+      <a id="google-login" class="button button-secondary hidden" href="/auth/google/start">Google</a>
+      <a id="github-login" class="button button-secondary hidden" href="/auth/github/start">GitHub</a>
+      <select id="organization-select" class="hidden" aria-label="Organization"></select>
+      <button id="add-organization" class="button button-secondary hidden" type="button">New organization</button>
+      <button id="invite-member" class="button button-secondary hidden" type="button">Manage members</button>
+      <button id="logout" class="button button-secondary hidden" type="button">Sign out</button>
+    </div>
+  </header>
+
+  <div id="main" class="app-shell hidden">
+    <aside class="sidebar" aria-label="Project navigation">
+      <div class="sidebar-heading"><span>Projects</span><button id="add-project-toggle" class="icon-button small" type="button" aria-label="Add project" title="Add project">+</button></div>
+      <div id="projects" class="project-list"></div>
+      <form id="add-project" class="add-project-form hidden">
+        <label for="project-name">Project name</label><input id="project-name" placeholder="my-project" required>
+        <label for="project-git">Git URL</label><input id="project-git" placeholder="git@github.com:org/repo.git" required>
+        <label for="project-ref">Ref</label><input id="project-ref" placeholder="HEAD">
+        <button class="button button-primary full-width" type="submit">Add project</button>
+      </form>
+      <div class="sidebar-divider"></div>
+      <div class="sidebar-heading"><span>Workflows</span></div>
+      <div id="workflows" class="workflow-list"><p class="sidebar-empty">Select a project.</p></div>
+      <div class="sidebar-bottom">
+        <button class="nav-item" type="button" data-view="system"><span aria-hidden="true">⌘</span> System</button>
+        <button id="reload" class="nav-item" type="button"><span aria-hidden="true">↻</span> Reload configuration</button>
+        <button id="refresh" class="nav-item" type="button"><span aria-hidden="true">⟳</span> Refresh view</button>
+      </div>
+    </aside>
+
+    <main class="content">
+      <section id="view-runs" class="view" aria-labelledby="selection-title">
+        <div class="page-heading">
+          <div><div class="eyebrow" id="project-source"></div><h1 id="selection-title">Select a project</h1></div>
+          <div id="page-actions" class="page-actions"></div>
+        </div>
+        <div id="project-status" class="project-status"></div>
+        <nav class="tabs" aria-label="Project sections">
+          <button class="tab active" type="button" data-view="runs"><span aria-hidden="true">◷</span> Runs <span id="run-count" class="counter"></span></button>
+          <button class="tab" type="button" data-view="workflows-tab"><span aria-hidden="true">⑂</span> Workflows</button>
+          <button class="tab" type="button" data-view="system"><span aria-hidden="true">⌘</span> System</button>
+        </nav>
+        <div id="runs-view" class="view-panel">
+          <div id="runs"><div class="empty-state"><span class="empty-icon">◷</span><h2>Choose a workflow</h2><p>Select a workflow to inspect and start its runs.</p></div></div>
+          <section id="run-detail" class="run-detail hidden" aria-labelledby="run-title">
+            <div class="section-heading"><div><div class="eyebrow">RUN DETAILS</div><h2 id="run-title">Pipeline</h2></div><div id="run-status"></div></div>
+            <section id="approval-actions" class="approval-actions hidden" aria-live="polite"></section>
+            <section id="run-usage" class="run-usage hidden" aria-label="Reported model usage"></section>
+            <div id="pipeline" class="pipeline"><p class="muted">Select a run to inspect its workflow graph.</p></div>
+            <section id="step-logs" class="step-logs hidden" aria-live="polite"></section>
+            <section class="run-output"><div class="section-heading"><h3>Run activity</h3></div><div id="event-log" class="event-log"></div><div id="artifacts" class="artifact-list"></div><details class="details-panel raw-data"><summary>Raw run data</summary><pre id="details"></pre></details></section>
+          </section>
+        </div>
+        <div id="workflows-view" class="view-panel hidden">
+          <div class="section-heading"><div><div class="eyebrow">PROJECT AUTOMATION</div><h2>Workflows</h2></div></div>
+          <div id="workflow-cards" class="workflow-cards"></div>
+        </div>
+      </section>
+
+      <section id="view-system" class="view hidden" aria-labelledby="system-title">
+        <div class="page-heading"><div><div class="eyebrow">ENGINE OVERVIEW</div><h1 id="system-title">System</h1><p class="page-description">Runner availability and active resource reservations.</p></div></div>
+        <div class="system-grid">
+          <section class="surface"><div class="section-heading"><h2>Runners</h2><span id="runner-count" class="counter"></span></div><button id="add-runner" class="button button-secondary hidden" type="button">Add runner</button><div id="runners"></div></section>
+          <section class="surface"><div class="section-heading"><h2>Resource locks</h2><span id="resource-count" class="counter"></span></div><div id="resources"></div></section>
+          <section class="surface wide"><div class="section-heading"><h2>Notifications</h2></div><div id="notifications"></div><div id="notification-settings" class="notification-settings"><p class="muted">Notification URLs are stored encrypted for this organization and are never shown again after saving.</p><form id="notification-settings-form"><label for="notification-kind">Channel</label><select id="notification-kind"><option value="webhook">Generic webhook</option><option value="slack">Slack incoming webhook</option></select><label for="notification-url">HTTPS endpoint</label><input id="notification-url" type="url" required maxlength="2048" autocomplete="off"><div class="approval-buttons"><button class="button button-primary" type="submit">Save endpoint</button><button id="notification-remove" class="button button-secondary" type="button">Remove endpoint</button></div><p id="notification-target-status" class="muted"></p></form><fieldset id="notification-event-settings"><legend>Notify me about</legend></fieldset></div></section>
+          <section class="surface wide"><div class="section-heading"><h2>Configuration errors</h2></div><pre id="errors" class="error-output">None</pre></section>
+        </div>
+      </section>
+    </main>
+  </div>
+  <dialog id="organization-dialog" class="organization-dialog">
+    <form method="dialog" class="dialog-heading"><div><div class="eyebrow">ORGANIZATION</div><h2>Members and invitations</h2></div><button class="icon-button" aria-label="Close">×</button></form>
+    <div id="organization-members" class="organization-members"></div>
+    <section class="invite-panel"><h3>Invite someone</h3><form id="invite-form"><label for="invite-email">Email address</label><input id="invite-email" type="email" required><label for="invite-role">Role</label><select id="invite-role"><option value="member">Member</option><option value="admin">Admin</option></select><button class="button button-primary" type="submit">Send invitation</button></form></section>
+    <section class="invite-panel"><h3>Pending invitations</h3><div id="organization-invitations"></div></section>
+  </dialog>
+  <dialog id="runner-dialog" class="organization-dialog">
+    <form method="dialog" class="dialog-heading"><div><div class="eyebrow">RUNNER SETUP</div><h2>Add a runner</h2></div><button class="icon-button" aria-label="Close">×</button></form>
+    <form id="runner-form" class="invite-panel">
+      <label for="runner-name">Runner name</label><input id="runner-name" required maxlength="64" value="local-runner">
+      <label for="runner-capacity">Concurrent jobs</label><input id="runner-capacity" type="number" min="1" max="64" value="1" required>
+      <fieldset><legend>Projects</legend><div id="runner-projects"></div></fieldset>
+      <button class="button button-primary" type="submit">Create setup command</button>
+      <p id="runner-expiry" class="muted hidden"></p><textarea id="runner-command" class="hidden" rows="4" readonly aria-label="Runner setup command"></textarea>
+      <button id="runner-copy" class="button button-secondary hidden" type="button">Copy command</button>
+    </form>
+  </dialog>
+  <dialog id="runner-access-dialog" class="organization-dialog">
+    <form method="dialog" class="dialog-heading"><div><div class="eyebrow">RUNNER ACCESS</div><h2 id="runner-access-title">Project assignments</h2></div><button class="icon-button" aria-label="Close">×</button></form>
+    <form id="runner-access-form" class="invite-panel">
+      <fieldset><legend>Projects this runner may access</legend><div id="runner-access-projects"></div></fieldset>
+      <button class="button button-primary" type="submit">Save access</button>
+    </form>
+  </dialog>
+  <dialog id="environment-dialog" class="organization-dialog">
+    <form method="dialog" class="dialog-heading"><div><div class="eyebrow">PROJECT SETTINGS</div><h2>Variables and secrets</h2></div><button class="icon-button" aria-label="Close">×</button></form>
+    <p class="muted">Values are available to every workflow in this project. Secret values are encrypted and cannot be viewed again after saving.</p>
+    <div id="environment-items" class="organization-members"></div>
+    <form id="environment-form" class="invite-panel">
+      <label for="environment-name">Name</label><input id="environment-name" required maxlength="128" pattern="[A-Za-z_][A-Za-z0-9_]*" autocomplete="off">
+      <label for="environment-value">Value</label><textarea id="environment-value" required maxlength="65536" rows="3" autocomplete="new-password"></textarea>
+      <label class="row"><input id="environment-secret" type="checkbox"> Secret</label>
+      <button class="button button-primary" type="submit">Save value</button>
+    </form>
+  </dialog>
+  <dialog id="workflow-input-dialog" class="organization-dialog" aria-labelledby="workflow-input-title">
+    <form method="dialog" class="dialog-heading"><div><div class="eyebrow">WORKFLOW INPUT</div><h2 id="workflow-input-title">Start workflow</h2></div><button class="icon-button" aria-label="Close">×</button></form>
+    <form id="workflow-input-form" class="invite-panel"><div id="workflow-input-fields"></div><div class="approval-buttons"><button class="button button-secondary" type="button" id="workflow-input-cancel">Cancel</button><button class="button button-primary" type="submit">Run workflow</button></div></form>
+  </dialog>
+</body>
+</html>

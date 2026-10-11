@@ -1,0 +1,13 @@
+workflows:
+  review:
+    steps:
+      inspect:
+        type: agent
+        profile: reviewer
+        prompt: prompts/review.md
+      validate:
+        type: action
+        action: docs.check
+        needs: [inspect]
+        input_refs:
+          message: steps.inspect.outputs.summary

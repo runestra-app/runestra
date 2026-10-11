@@ -1,0 +1,6 @@
+profiles:
+  reviewer:
+    adapter: claude
+    authentication: local
+    sandbox: read-only
+    tools: [read]

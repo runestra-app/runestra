@@ -1,0 +1,28 @@
+version: 1
+name: skill-action
+profiles: {}
+actions:
+  report:
+    argv: [python3, '@package/skills/report/report.py']
+    files: [skills/report/SKILL.md]
+    input_schema:
+      type: object
+      required: [text]
+      properties:
+        text: {type: string}
+      additionalProperties: false
+    result_schema:
+      type: object
+      required: [status, summary, outputs]
+      properties:
+        status: {const: succeeded}
+        summary: {type: string}
+        outputs: {type: object}
+workflows:
+  report:
+    steps:
+      report:
+        type: action
+        action: report
+        inputs:
+          text: Example document with no Git or Jira dependency.

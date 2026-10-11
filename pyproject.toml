@@ -1,0 +1,35 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "aorch"
+version = "0.1.0"
+description = "Runestra workflow orchestration engine"
+license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE", "THIRD_PARTY_NOTICES.md"]
+requires-python = ">=3.12"
+dependencies = [
+    "pydantic>=2.10,<3",
+    "PyYAML>=6,<7",
+    "typer>=0.15,<1",
+    "jsonschema>=4.23,<5",
+    "fastapi>=0.143.0",
+    "uvicorn>=0.54.0",
+    "httpx>=0.28.1",
+    "itsdangerous>=2.2.0",
+    "authlib>=1.6.0,<2",
+    "cryptography>=44,<47",
+]
+
+[project.scripts]
+aorch = "aorch.cli:app"
+
+[dependency-groups]
+dev = ["pytest>=8,<10", "ruff>=0.9,<1"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+
+[tool.ruff]
+target-version = "py312"
