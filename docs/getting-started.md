@@ -22,6 +22,61 @@ history. Each start queues a new `commands` run. An immediate restart can
 wait up to 30 seconds for the previous runner registration to expire. Logs are in
 `.runtime/quick-start/engine.log` and `.runtime/quick-start/runner.log`.
 
+## Run the engine and runner separately
+
+The engine serves the browser and schedules work. The runner connects to the
+engine and executes workflow steps. To run each process in its own terminal,
+first create local configuration from the repository root:
+
+```sh
+uv sync --locked
+uv run --locked aorch init-local examples/local-actions --directory .runtime/local
+```
+
+In the first terminal, start the engine with local sign-in enabled:
+
+```sh
+uv run --locked aorch engine .runtime/local/engine.yaml --local-auth
+```
+
+In a second terminal, start the runner:
+
+```sh
+uv run --locked aorch runner .runtime/local/runner.yaml
+```
+
+Open `http://127.0.0.1:8765` and choose **Continue locally**. Stop both
+processes with Ctrl+C. This setup keeps engine and runner state in
+`.runtime/local`.
+
+## Run with Docker Compose
+
+Compose can run both services in containers. From the repository root, create
+the same local configuration, including the path where Compose mounts the
+sample project:
+
+```sh
+uv run --locked aorch init-local examples/local-actions \
+  --directory .runtime/local \
+  --project-mount-path /workspace/examples/local-actions
+export RUNESTRA_UID="$(id -u)"
+export RUNESTRA_GID="$(id -g)"
+docker compose -f compose.yaml -f compose.local-auth.yaml \
+  --profile container-runner up --build
+```
+
+Open `http://127.0.0.1:8765` and choose **Continue locally**. The Compose
+configuration publishes the engine on the host loopback address and enables
+the optional container runner profile. Stop the services with Ctrl+C, or run:
+
+```sh
+docker compose -f compose.yaml -f compose.local-auth.yaml \
+  --profile container-runner down
+```
+
+Both services use `.runtime/local` for persistent state. The local-auth Compose
+override is for loopback-only development, not a public deployment.
+
 The helper explicitly enables loopback-only local sign-in. Ordinary deployments
 use email sign-in; see [operations](operations.md#email-sign-in). The helper uses
 its own demo directory, separate from an existing `.runtime/local` installation.
