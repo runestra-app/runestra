@@ -17,6 +17,15 @@
       "title": "Adapters",
       "type": "array"
     },
+    "agent_execution": {
+      "default": "sandboxed",
+      "enum": [
+        "sandboxed",
+        "trusted-host"
+      ],
+      "title": "Agent Execution",
+      "type": "string"
+    },
     "allow_file_git_sources": {
       "default": false,
       "title": "Allow File Git Sources",

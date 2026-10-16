@@ -23,6 +23,7 @@ SCRATCH_ENVIRONMENT = {
     "SCCACHE_DIR": "cache/sccache",
     "CLANG_MODULE_CACHE_PATH": "cache/clang-modules",
     "SWIFT_MODULE_CACHE_PATH": "cache/swift-modules",
+    "SWIFTPM_MODULECACHE_OVERRIDE": "cache/swiftpm-modules",
     "NUGET_PACKAGES": "cache/nuget",
     "DOTNET_CLI_HOME": "cache/dotnet",
     "GEM_HOME": "cache/gems",

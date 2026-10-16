@@ -57,7 +57,7 @@ Supported profile fields:
 | `model` | Model name passed to the selected runtime. Optional for Claude and Codex, which can choose their defaults. Required for OpenAI API profiles. |
 | `credential_env` | Optional environment variable name for the API credential. It must match the provider's entry in the runner's `api_credentials` configuration. Put the variable's secret value on the runner, never in the project file. |
 | `tools` | Any combination of `read`, `write`, and `command`. Defaults to all three. These enable workspace file reading, workspace file writing, and command execution respectively. |
-| `sandbox` | `read-only` or `workspace-write`. Defaults to `workspace-write`. `read-only` cannot be combined with the `write` tool. Codex receives this as its sandbox mode. Claude currently receives the allowed tool list, but not a separate sandbox-mode argument, so for Claude use `tools` as the operative capability restriction. |
+| `sandbox` | `read-only` or `workspace-write`. Defaults to `workspace-write`. `read-only` cannot be combined with the `write` tool. Codex receives this as its sandbox mode. Claude does not receive an OS filesystem sandbox; its configured tool list and permission mode control tool use, and allowing `Bash` can run commands with the runner account's filesystem rights. |
 | `additional_writable_roots` | Codex only. Optional list of existing, absolute, narrow directories to add to Codex's writable roots. Defaults to empty. Only available with `sandbox: workspace-write`. |
 | `max_iterations` | OpenAI API agent limit, from 1 to 100, default 12. |
 | `max_output_tokens` | Maximum generated tokens per OpenAI API response, minimum 128, default 4096. |
@@ -79,6 +79,25 @@ and build variables to subdirectories there. The scratch directory is removed
 when the attempt finishes. `HOME` is left unchanged, and workspace-write
 remains the default Codex sandbox. Tools that ignore these variables can still
 be denied when writing outside the workspace and configured roots.
+
+The runner operator can set `agent_execution: trusted-host` in `runner.yaml`:
+
+```yaml
+id: macos-build
+token_file: runner.token
+workspace_root: workspaces
+agent_execution: trusted-host
+```
+
+This setting is not available in project workflow configuration and defaults to
+`sandboxed`. In `trusted-host` mode the Codex and Claude CLIs run without their
+filesystem sandbox or permission prompts. They can read and change any files
+available to the runner's operating-system account. Workflow scripts, package
+manifests, build phases, and tests execute with runner permissions too, so an
+agent sandbox alone is not a security boundary for the full workflow. Use this
+mode only on a dedicated OS account or VM with limited files and credentials.
+The attempt scratch environment remains configured in this mode for cache and
+build hygiene. There is no automatic fallback from sandboxed to trusted-host.
 
 Codex users can grant one extra, existing directory when a tool cannot use the
 attempt scratch directory. This expands the locations the agent can modify, so

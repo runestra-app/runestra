@@ -58,20 +58,26 @@ def parse_agent_result(data):
     )
 
 
-def build_codex_arguments(executable, profile, scratch, writable_roots, schema_file, result_file):
+def build_codex_arguments(
+    executable, profile, scratch, writable_roots, schema_file, result_file,
+    trusted_host=False,
+):
     arguments = [
         executable,
         "exec",
         "--ignore-user-config",
         "--skip-git-repo-check",
         "--json",
-        "--sandbox",
-        profile["sandbox"],
     ]
-    if profile["sandbox"] == "workspace-write":
+    if trusted_host:
+        arguments.append("--dangerously-bypass-approvals-and-sandbox")
+    else:
+        arguments.extend(("--sandbox", profile["sandbox"]))
+    if not trusted_host and profile["sandbox"] == "workspace-write":
         arguments.extend(("--add-dir", str(scratch)))
-    for root in writable_roots:
-        arguments.extend(("--add-dir", str(root)))
+    if not trusted_host:
+        for root in writable_roots:
+            arguments.extend(("--add-dir", str(root)))
     arguments.extend(
         (
             "--output-schema",
@@ -83,6 +89,38 @@ def build_codex_arguments(executable, profile, scratch, writable_roots, schema_f
     )
     if profile.get("model"):
         arguments.extend(("--model", profile["model"]))
+    return arguments
+
+
+def build_claude_arguments(executable, profile, trusted_host=False):
+    tool_map = {"read": "Read,Grep,Glob", "write": "Edit,Write", "command": "Bash"}
+    tools = ",".join(tool_map[tool] for tool in profile["tools"])
+    arguments = [
+        executable,
+        "--print",
+        "--output-format",
+        "stream-json",
+        "--verbose",
+        "--json-schema",
+        json.dumps(RESULT_SCHEMA),
+        "--permission-mode",
+        "bypassPermissions" if trusted_host else "dontAsk",
+        "--permission-prompts",
+        "none",
+        "--tools",
+        tools,
+        "--allowedTools",
+        tools,
+        "--strict-mcp-config",
+        "--mcp-config",
+        '{"mcpServers":{}}',
+        "--setting-sources",
+        "",
+        "--max-budget-usd",
+        str(profile["max_budget_usd"]),
+    ]
+    if trusted_host:
+        arguments.append("--dangerously-skip-permissions")
     return arguments
 
 
@@ -154,6 +192,12 @@ def build_prompt(assignment, package_dir, context):
         "the sandbox denies it, report the exact denied path and tool. Do not retry by broadening "
         "filesystem access or changing sandbox settings."
     )
+    if context.get("agent_execution") == "trusted-host":
+        parts.append(
+            "This runner is configured for trusted-host execution. Your shell and file tools "
+            "can access files allowed to the runner's operating-system account. Treat repository "
+            "scripts and build phases as executable code, and do not access unrelated user data."
+        )
     if context.get("coding_repair_role") == "review":
         parts.append(
             "Coding repair review output contract: outputs_json must be a JSON object "
@@ -171,6 +215,7 @@ def build_prompt(assignment, package_dir, context):
 async def execute_agent(
     assignment, config, journal, cancelled, workspace, package_dir, context
 ):
+    context = {**context, "agent_execution": config.agent_execution}
     profile = assignment["package"]["configuration"]["profiles"][
         assignment["step"]["profile"]
     ]
@@ -199,7 +244,8 @@ async def execute_agent(
         target = "CODEX_API_KEY" if adapter == "codex" else "ANTHROPIC_API_KEY"
         env[target] = os.environ[source]
     writable_roots = []
-    if adapter == "codex":
+    trusted_host = config.agent_execution == "trusted-host"
+    if adapter == "codex" and not trusted_host:
         writable_roots = validate_additional_writable_roots(
             profile.get("additional_writable_roots", []), workspace
         )
@@ -211,39 +257,11 @@ async def execute_agent(
         schema_file.write_text(json.dumps(RESULT_SCHEMA))
         if adapter == "codex":
             argv = build_codex_arguments(
-                executable, profile, scratch, writable_roots, schema_file, result_file
+                executable, profile, scratch, writable_roots, schema_file, result_file,
+                trusted_host=trusted_host,
             )
         elif adapter == "claude":
-            tool_map = {
-                "read": "Read,Grep,Glob",
-                "write": "Edit,Write",
-                "command": "Bash",
-            }
-            tools = ",".join(tool_map[tool] for tool in profile["tools"])
-            argv = [
-                executable,
-                "--print",
-                "--output-format",
-                "stream-json",
-                "--verbose",
-                "--json-schema",
-                json.dumps(RESULT_SCHEMA),
-                "--permission-mode",
-                "dontAsk",
-                "--permission-prompts",
-                "none",
-                "--tools",
-                tools,
-                "--allowedTools",
-                tools,
-                "--strict-mcp-config",
-                "--mcp-config",
-                '{"mcpServers":{}}',
-                "--setting-sources",
-                "",
-                "--max-budget-usd",
-                str(profile["max_budget_usd"]),
-            ]
+            argv = build_claude_arguments(executable, profile, trusted_host)
         else:
             raise ValueError(f"Unsupported adapter: {adapter}")
         if adapter != "codex" and profile.get("model"):

@@ -70,6 +70,7 @@ request format described in the [operations guide](operations.md).
 | `log_max_attempt_bytes` | Integer | `52428800` (50 MiB); minimum `1024`. |
 | `capacity` | Integer | `1` or greater. Maximum simultaneous step attempts. |
 | `adapters` | Array of adapter names | Default `[action, shell]`. Known adapters: `action`, `shell`, `codex`, `claude`, `openai`. Only advertise adapters configured and available on this machine. |
+| `agent_execution` | `sandboxed` or `trusted-host` | Defaults to `sandboxed`. Operator-controlled execution mode for Codex and Claude CLI agents. `trusted-host` lets those agents execute commands without the CLI sandbox or permission prompts. Use only on a dedicated runner account or isolated machine whose files and credentials are in scope. |
 | `environment` | Array of environment variable names | Empty. Adds named variables to the allowlist passed to workflow subprocesses. |
 | `connections` | Mapping from connection name to string settings | Empty. GitHub connections use `token_env`; its named credential stays on the runner and is withheld from workflow subprocesses. |
 | `repositories` | Mapping from repository name to local path | Empty. Used by `git.prepare`; paths resolve relative to `runner.yaml`. |

@@ -3,6 +3,7 @@
 import re
 from ipaddress import ip_address
 from pathlib import Path
+from typing import Literal
 
 import yaml
 from pydantic import Field, model_validator
@@ -144,6 +145,7 @@ class RunnerConfig(Contract):
     log_max_attempt_bytes: int = Field(default=50 * 1024**2, ge=1024)
     capacity: int = Field(default=1, ge=1)
     adapters: list[str] = Field(default_factory=lambda: ["action", "shell"])
+    agent_execution: Literal["sandboxed", "trusted-host"] = "sandboxed"
     environment: list[str] = Field(default_factory=list)
     connections: dict[str, dict[str, str]] = Field(default_factory=dict)
     repositories: dict[str, Path] = Field(default_factory=dict)

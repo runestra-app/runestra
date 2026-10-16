@@ -9,7 +9,11 @@ from aorch.runner.agent_scratch import (
     scratch_environment,
     validate_additional_writable_roots,
 )
-from aorch.runner.agents import build_codex_arguments, sandbox_denial_result
+from aorch.runner.agents import (
+    build_claude_arguments,
+    build_codex_arguments,
+    sandbox_denial_result,
+)
 
 
 def test_attempt_scratch_is_private_and_isolated(tmp_path):
@@ -31,7 +35,10 @@ def test_attempt_scratch_environment_redirects_common_caches(tmp_path):
 
     assert environment["RUNESTRA_ATTEMPT_SCRATCH"] == str(scratch)
     assert set(SCRATCH_ENVIRONMENT).issubset(environment)
-    for key in ("TMPDIR", "TMP", "TEMP", "XDG_CACHE_HOME", "CARGO_TARGET_DIR", "GRADLE_USER_HOME"):
+    for key in (
+        "TMPDIR", "TMP", "TEMP", "XDG_CACHE_HOME", "CARGO_TARGET_DIR",
+        "GRADLE_USER_HOME", "SWIFTPM_MODULECACHE_OVERRIDE",
+    ):
         assert Path(environment[key]).is_relative_to(scratch)
         assert Path(environment[key]).is_dir()
 
@@ -75,6 +82,25 @@ def test_codex_read_only_does_not_add_attempt_scratch(tmp_path):
         "codex", {"sandbox": "read-only"}, tmp_path / "scratch", [], "schema", "result"
     )
     assert "--add-dir" not in args
+
+
+def test_trusted_host_codex_arguments_disable_cli_sandbox_without_extra_roots(tmp_path):
+    args = build_codex_arguments(
+        "codex", {"sandbox": "workspace-write"}, tmp_path / "scratch",
+        [tmp_path / "extra"], "schema", "result", trusted_host=True,
+    )
+    assert "--dangerously-bypass-approvals-and-sandbox" in args
+    assert "--sandbox" not in args
+    assert "--add-dir" not in args
+
+
+def test_trusted_host_claude_arguments_bypass_cli_permissions():
+    args = build_claude_arguments(
+        "claude", {"tools": ["read", "write", "command"], "max_budget_usd": 1},
+        trusted_host=True,
+    )
+    assert args[args.index("--permission-mode") + 1] == "bypassPermissions"
+    assert "--dangerously-skip-permissions" in args
 
 
 def test_sandbox_denial_keeps_path_and_diagnostic_line():

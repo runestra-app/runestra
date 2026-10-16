@@ -72,4 +72,15 @@ if ! grep -Fq 'python3' "$root/result.txt"; then
   echo "Expected the python3 tool in the structured report." >&2
   exit 1
 fi
-echo "PASS: cache and build writes succeeded in configured roots; outside write remained blocked."
+
+trusted_write="$root/trusted-host-write.txt"
+cat > "$root/trusted-host-prompt.txt" <<PROMPT
+Use your command execution tool to write the exact text trusted to $trusted_write.
+Return only whether the write succeeded.
+PROMPT
+codex exec --ignore-user-config --skip-git-repo-check --json \
+  --dangerously-bypass-approvals-and-sandbox \
+  --output-last-message "$root/trusted-host-result.txt" -C "$workspace" - \
+  < "$root/trusted-host-prompt.txt" > "$root/trusted-host-events.jsonl"
+test "$(cat "$trusted_write")" = trusted
+echo "PASS: cache and build writes succeeded in configured roots; outside write was blocked in workspace-write and allowed only by the explicit trusted-host flag."
