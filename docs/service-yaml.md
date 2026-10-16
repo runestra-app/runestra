@@ -62,7 +62,7 @@ request format described in the [operations guide](operations.md).
 | `id` | String, required | Stable runner identifier. |
 | `engine_url` | Absolute URL | `http://127.0.0.1:8765`. Remote engines require HTTPS; HTTP is allowed for loopback hosts. Credentials, query strings and fragments are forbidden. |
 | `token_file` | Path, required | Runner authentication token. Keep it private. |
-| `workspace_root` | Path | `workspaces`. Run workspaces are created under this directory. |
+| `workspace_root` | Path | `workspaces`. Run workspaces are created under this directory. Agent attempts get a private `.aorch-agent-scratch` directory beside the checkout; it is outside the Git working tree and removed after each attempt. |
 | `journal` | Path | `runner.sqlite`. Stores local runner and recovery state. |
 | `log_directory` | Path | `logs`. Resolved relative to `runner.yaml`. |
 | `log_retention_days` | Integer | `7`; range `1–365`. |

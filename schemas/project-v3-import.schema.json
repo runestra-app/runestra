@@ -49,6 +49,13 @@
           "title": "Adapter",
           "type": "string"
         },
+        "additional_writable_roots": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Additional Writable Roots",
+          "type": "array"
+        },
         "authentication": {
           "enum": [
             "local",

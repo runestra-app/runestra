@@ -58,6 +58,7 @@ Supported profile fields:
 | `credential_env` | Optional environment variable name for the API credential. It must match the provider's entry in the runner's `api_credentials` configuration. Put the variable's secret value on the runner, never in the project file. |
 | `tools` | Any combination of `read`, `write`, and `command`. Defaults to all three. These enable workspace file reading, workspace file writing, and command execution respectively. |
 | `sandbox` | `read-only` or `workspace-write`. Defaults to `workspace-write`. `read-only` cannot be combined with the `write` tool. Codex receives this as its sandbox mode. Claude currently receives the allowed tool list, but not a separate sandbox-mode argument, so for Claude use `tools` as the operative capability restriction. |
+| `additional_writable_roots` | Codex only. Optional list of existing, absolute, narrow directories to add to Codex's writable roots. Defaults to empty. Only available with `sandbox: workspace-write`. |
 | `max_iterations` | OpenAI API agent limit, from 1 to 100, default 12. |
 | `max_output_tokens` | Maximum generated tokens per OpenAI API response, minimum 128, default 4096. |
 | `max_total_tokens` | Maximum combined OpenAI API token usage, minimum 128, default 50000. |
@@ -69,6 +70,39 @@ The token limits and configured token prices are used by the OpenAI API agent.
 The current Claude adapter passes `max_budget_usd` and `model` to Claude CLI;
 the current Codex adapter passes `sandbox` and `model`. Do not assume limits
 that are not passed to a runtime are enforced by that runtime.
+
+For Codex and Claude CLI agent steps, the runner creates a private scratch
+directory for each attempt beside the repository checkout, outside the Git
+working tree. It sets `RUNESTRA_ATTEMPT_SCRATCH`, `TMPDIR`, `TMP`, `TEMP`,
+`XDG_CACHE_HOME`, and common Python, Rust, Go, Node, Gradle, and compiler cache
+and build variables to subdirectories there. The scratch directory is removed
+when the attempt finishes. `HOME` is left unchanged, and workspace-write
+remains the default Codex sandbox. Tools that ignore these variables can still
+be denied when writing outside the workspace and configured roots.
+
+Codex users can grant one extra, existing directory when a tool cannot use the
+attempt scratch directory. This expands the locations the agent can modify, so
+keep each root specific to the tool or project. Do not set a home directory,
+system directory, temporary root, or repository parent as an additional root.
+The runner rejects relative paths, filesystem roots, common broad system roots,
+roots that contain the runner workspace, and a whole home directory. A
+specific subdirectory inside a home directory can be used when appropriate.
+
+```yaml
+profiles:
+  builder:
+    adapter: codex
+    authentication: local
+    sandbox: workspace-write
+    additional_writable_roots:
+      - /srv/runestra/tool-cache/my-project
+```
+
+Create the directory on the runner before executing the workflow. A sandbox
+denial is recorded in the step log as `sandbox.denied`; the structured failure
+includes the denied path and tool when Codex provides the path. If a tool cannot
+redirect its write, use that diagnostic to decide whether a narrowly scoped
+extra root is justified. Do not retry by broadening filesystem access.
 
 For a read-only code review, use a profile such as:
 

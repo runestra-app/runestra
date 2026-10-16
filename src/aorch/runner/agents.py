@@ -7,6 +7,12 @@ import shutil
 from pathlib import PurePosixPath
 
 from aorch.contracts import StepResult
+from aorch.runner.agent_scratch import (
+    create_attempt_scratch,
+    sandbox_denial,
+    scratch_environment,
+    validate_additional_writable_roots,
+)
 from aorch.runner.executor import environment, process_identity
 from aorch.runner.process import log_context, log_suppressed, run_process
 
@@ -52,6 +58,63 @@ def parse_agent_result(data):
     )
 
 
+def build_codex_arguments(executable, profile, scratch, writable_roots, schema_file, result_file):
+    arguments = [
+        executable,
+        "exec",
+        "--ignore-user-config",
+        "--skip-git-repo-check",
+        "--json",
+        "--sandbox",
+        profile["sandbox"],
+    ]
+    if profile["sandbox"] == "workspace-write":
+        arguments.extend(("--add-dir", str(scratch)))
+    for root in writable_roots:
+        arguments.extend(("--add-dir", str(root)))
+    arguments.extend(
+        (
+            "--output-schema",
+            str(schema_file),
+            "--output-last-message",
+            str(result_file),
+            "-",
+        )
+    )
+    if profile.get("model"):
+        arguments.extend(("--model", profile["model"]))
+    return arguments
+
+
+def sandbox_denial_result(denial, tool):
+    path = denial["path"]
+    summary = f"Sandbox denied {tool} writing {path or 'an unknown path'}: {denial['message']}"
+    return StepResult(
+        status="failed",
+        summary=summary,
+        outputs={"denied_path": path, "tool": tool},
+        error="AgentSandboxDenied",
+    )
+
+
+def _sandbox_denied_tool(stdout):
+    tool = "Codex CLI"
+    for line in stdout.splitlines():
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(event, dict):
+            continue
+        item = event.get("item", {})
+        if not isinstance(item, dict):
+            continue
+        if item.get("type") == "command_execution":
+            command = item.get("command", "").strip()
+            tool = command.split(maxsplit=1)[0] if command else "Codex command execution"
+    return tool
+
+
 def build_prompt(assignment, package_dir, context):
     step = assignment["step"]
     root = package_dir.resolve()
@@ -80,6 +143,16 @@ def build_prompt(assignment, package_dir, context):
     parts.append("Execution context:\n" + json.dumps(context))
     parts.append(
         "Return the declared result schema. outputs_json must encode an object. Do not commit, push, comment or publish; those are separate workflow actions."
+    )
+    parts.append(
+        "Temporary files, tool caches, generated source, compiler caches, and build output must use "
+        "RUNESTRA_ATTEMPT_SCRATCH or the provided TMPDIR, TMP, TEMP, XDG_CACHE_HOME, and "
+        "tool-specific cache/build environment paths whenever the tool supports redirection. "
+        "For tools that require command-line settings, point compiler module caches and build "
+        "output options at RUNESTRA_ATTEMPT_SCRATCH. Keep intended source changes in the workspace. "
+        "If a tool cannot redirect a write and "
+        "the sandbox denies it, report the exact denied path and tool. Do not retry by broadening "
+        "filesystem access or changing sandbox settings."
     )
     if context.get("coding_repair_role") == "review":
         parts.append(
@@ -125,59 +198,59 @@ async def execute_agent(
             raise ValueError(f"Missing credential environment variable: {source}")
         target = "CODEX_API_KEY" if adapter == "codex" else "ANTHROPIC_API_KEY"
         env[target] = os.environ[source]
-    result_file = workspace / f".result-{assignment['attempt_id']}.json"
-    schema_file = package_dir / "result-schema.json"
-    schema_file.write_text(json.dumps(RESULT_SCHEMA))
+    writable_roots = []
     if adapter == "codex":
-        argv = [
-            executable,
-            "exec",
-            "--ignore-user-config",
-            "--skip-git-repo-check",
-            "--json",
-            "--sandbox",
-            profile["sandbox"],
-            "--output-schema",
-            str(schema_file),
-            "--output-last-message",
-            str(result_file),
-            "-",
-        ]
-    elif adapter == "claude":
-        tool_map = {
-            "read": "Read,Grep,Glob",
-            "write": "Edit,Write",
-            "command": "Bash",
-        }
-        tools = ",".join(tool_map[tool] for tool in profile["tools"])
-        argv = [
-            executable,
-            "--print",
-            "--output-format",
-            "stream-json",
-            "--verbose",
-            "--json-schema",
-            json.dumps(RESULT_SCHEMA),
-            "--permission-mode",
-            "dontAsk",
-            "--permission-prompts",
-            "none",
-            "--tools",
-            tools,
-            "--allowedTools",
-            tools,
-            "--strict-mcp-config",
-            "--mcp-config",
-            '{"mcpServers":{}}',
-            "--setting-sources",
-            "",
-            "--max-budget-usd",
-            str(profile["max_budget_usd"]),
-        ]
-    else:
-        raise ValueError(f"Unsupported adapter: {adapter}")
-    if profile.get("model"):
-        argv += ["--model", profile["model"]]
+        writable_roots = validate_additional_writable_roots(
+            profile.get("additional_writable_roots", []), workspace
+        )
+    scratch = create_attempt_scratch(workspace, assignment["attempt_id"])
+    env.update(scratch_environment(scratch))
+    result_file = scratch / "result.json"
+    schema_file = package_dir / "result-schema.json"
+    try:
+        schema_file.write_text(json.dumps(RESULT_SCHEMA))
+        if adapter == "codex":
+            argv = build_codex_arguments(
+                executable, profile, scratch, writable_roots, schema_file, result_file
+            )
+        elif adapter == "claude":
+            tool_map = {
+                "read": "Read,Grep,Glob",
+                "write": "Edit,Write",
+                "command": "Bash",
+            }
+            tools = ",".join(tool_map[tool] for tool in profile["tools"])
+            argv = [
+                executable,
+                "--print",
+                "--output-format",
+                "stream-json",
+                "--verbose",
+                "--json-schema",
+                json.dumps(RESULT_SCHEMA),
+                "--permission-mode",
+                "dontAsk",
+                "--permission-prompts",
+                "none",
+                "--tools",
+                tools,
+                "--allowedTools",
+                tools,
+                "--strict-mcp-config",
+                "--mcp-config",
+                '{"mcpServers":{}}',
+                "--setting-sources",
+                "",
+                "--max-budget-usd",
+                str(profile["max_budget_usd"]),
+            ]
+        else:
+            raise ValueError(f"Unsupported adapter: {adapter}")
+        if adapter != "codex" and profile.get("model"):
+            argv += ["--model", profile["model"]]
+    except Exception:
+        shutil.rmtree(scratch, ignore_errors=True)
+        raise
     try:
         suppression_token = log_suppressed.set(True)
         try:
@@ -195,6 +268,16 @@ async def execute_agent(
             )
         finally:
             log_suppressed.reset(suppression_token)
+        denial = sandbox_denial(stderr + "\n" + stdout)
+        tool = _sandbox_denied_tool(stdout) if denial and adapter == "codex" else adapter
+        if denial:
+            logger = log_context.get()
+            if logger:
+                logger("sandbox.denied", {
+                    "message": f"Sandbox denied {tool} writing {denial['path'] or 'an unknown path'}: {denial['message']}",
+                    "path": denial["path"],
+                    "tool": tool,
+                })
         if code:
             diagnostic = "\n".join(stderr.splitlines()[-8:]).strip()[-1200:]
             if not diagnostic:
@@ -207,6 +290,10 @@ async def execute_agent(
                         diagnostic = event["result"].strip()[-1200:]
                         break
             summary = f"{adapter} exited with {code}"
+            if denial:
+                denial["tool"] = tool
+                failure = sandbox_denial_result(denial, tool)
+                return failure
             if diagnostic:
                 summary += f": {diagnostic}"
             return StepResult(
@@ -246,8 +333,14 @@ async def execute_agent(
                 raise ValueError(str(final.get("result", "Claude runtime failed")))
             data = final["structured_output"]
         result = parse_agent_result(data)
+        if denial and result.status == "failed":
+            failure = sandbox_denial_result(denial, tool)
+            result.summary = failure.summary
+            result.error = failure.error
+            result.outputs.update(failure.outputs)
         return result
     except asyncio.CancelledError:
         return StepResult(status="cancelled", summary="Agent stopped")
     finally:
         result_file.unlink(missing_ok=True)
+        shutil.rmtree(scratch, ignore_errors=True)

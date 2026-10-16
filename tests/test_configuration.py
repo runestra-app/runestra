@@ -130,6 +130,61 @@ def test_agent_accepts_inline_prompt_text(tmp_path):
     assert step["prompt_text"] == "Review the changes.\nReport concrete bugs."
 
 
+@pytest.mark.parametrize("root", ["relative/cache", "/"])
+def test_agent_rejects_unsafe_additional_writable_roots(tmp_path, root):
+    data = copy.deepcopy(BASE)
+    data["profiles"] = {
+        "writer": {
+            "adapter": "codex",
+            "authentication": "local",
+            "additional_writable_roots": [root],
+        }
+    }
+    data["workflows"]["work"]["steps"]["write"] = {
+        "type": "agent",
+        "profile": "writer",
+        "prompt_text": "Write a file.",
+    }
+    with pytest.raises(ConfigurationError, match="Additional writable roots"):
+        snapshot(write(tmp_path, data))
+
+
+def test_agent_limits_additional_writable_roots_to_codex_workspace_write(tmp_path):
+    data = copy.deepcopy(BASE)
+    data["profiles"] = {
+        "writer": {
+            "adapter": "claude",
+            "authentication": "local",
+            "additional_writable_roots": [str(tmp_path / "extra")],
+        }
+    }
+    data["workflows"]["work"]["steps"]["write"] = {
+        "type": "agent",
+        "profile": "writer",
+        "prompt_text": "Write a file.",
+    }
+    with pytest.raises(ConfigurationError, match="supported only by the Codex"):
+        snapshot(write(tmp_path, data))
+
+
+def test_agent_accepts_narrow_absolute_codex_writable_root(tmp_path):
+    data = copy.deepcopy(BASE)
+    data["profiles"] = {
+        "writer": {
+            "adapter": "codex",
+            "authentication": "local",
+            "additional_writable_roots": [str(tmp_path / "tool-cache")],
+        }
+    }
+    data["workflows"]["work"]["steps"]["write"] = {
+        "type": "agent",
+        "profile": "writer",
+        "prompt_text": "Write a file.",
+    }
+    profile = snapshot(write(tmp_path, data))["configuration"]["profiles"]["writer"]
+    assert profile["additional_writable_roots"] == [str(tmp_path / "tool-cache")]
+
+
 @pytest.mark.parametrize(
     "prompt_fields",
     [{}, {"prompt": "review.md", "prompt_text": "Review."}, {"prompt_text": "  "}],

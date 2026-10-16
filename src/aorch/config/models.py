@@ -2,6 +2,7 @@
 
 import ast
 import re
+from pathlib import Path
 from typing import Any, Literal
 from urllib.parse import urlsplit
 
@@ -46,6 +47,7 @@ class AgentProfile(Contract):
     input_price_per_million: float | None = Field(default=None, ge=0)
     output_price_per_million: float | None = Field(default=None, ge=0)
     sandbox: Literal["read-only", "workspace-write"] = "workspace-write"
+    additional_writable_roots: list[str] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def check_authentication(self):
@@ -57,6 +59,25 @@ class AgentProfile(Contract):
             raise ValueError("Unknown agent tool")
         if self.sandbox == "read-only" and "write" in self.tools:
             raise ValueError("Read-only profile cannot allow writing")
+        if self.additional_writable_roots and self.adapter != "codex":
+            raise ValueError("additional_writable_roots is supported only by the Codex adapter")
+        if self.additional_writable_roots and self.sandbox != "workspace-write":
+            raise ValueError("additional_writable_roots requires workspace-write sandbox")
+        roots = []
+        for configured in self.additional_writable_roots:
+            if not isinstance(configured, str) or not configured:
+                raise ValueError("Additional writable roots must be narrow absolute paths")
+            path = Path(configured)
+            if (
+                not path.is_absolute()
+                or ".." in path.parts
+                or path == Path(path.anchor)
+            ):
+                raise ValueError("Additional writable roots must be narrow absolute paths")
+            normalized = str(path)
+            if normalized in roots:
+                raise ValueError("Additional writable roots must not contain duplicates")
+            roots.append(normalized)
         return self
 
 
