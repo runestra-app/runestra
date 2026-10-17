@@ -229,6 +229,60 @@ async def jira_action(
                 summary=f"Jira issue transitioned to {target}",
                 outputs={"issue": key, "status": current},
             )
+        if name == "jira.report_failure":
+            marker = f"[aorch:failure:{inputs['run_id']}]"
+            root = config.workspace_root if config else workspace
+            ledger = EffectLedger(root / "effects.sqlite")
+            effect = ledger.get(marker)
+            rows = await comments(client, key)
+            found = next((row for row in rows if marker in plain_text(row["body"])), None)
+            if found:
+                provider_id = found["id"]
+                ledger.intent(marker)
+                ledger.done(marker, {"provider_id": provider_id})
+            elif effect:
+                if effect["status"] != "done":
+                    return StepResult(status="needs_attention", summary="Failure report outcome uncertain; reconcile before retry")
+                provider_id = effect["result"]["provider_id"]
+            else:
+                from aorch.runner.executor import (
+                    project_secret,
+                    project_secret_names_context,
+                )
+
+                report = {
+                    key: inputs[key]
+                    for key in ("run_id", "failed_step", "status", "summary", "error", "attempt_id")
+                }
+                report["diagnostics"] = inputs.get("diagnostics", {})
+                report["artifacts"] = inputs.get("artifacts", [])
+                report["failures"] = inputs.get("failures", [])
+                text = json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True)
+                for secret_name in project_secret_names_context.get():
+                    secret = project_secret(secret_name)
+                    if secret:
+                        text = text.replace(secret, "[REDACTED]")
+                if len(text) > 24000:
+                    text = text[:24000] + "\n[diagnostics truncated]"
+                text += "\n" + marker
+                if cancelled.is_set():
+                    return StepResult(status="cancelled", summary="Failure report stopped before publication")
+                ledger.intent(marker)
+                try:
+                    response = await client.post(
+                        f"/rest/api/3/issue/{quote(key, safe='')}/comment",
+                        json={"body": adf("Runestra workflow failure\n" + text)},
+                    )
+                    response.raise_for_status()
+                    provider_id = response.json()["id"]
+                except (httpx.HTTPError, KeyError, ValueError):
+                    return StepResult(status="needs_attention", summary="Failure report outcome uncertain; reconcile before retry")
+                ledger.done(marker, {"provider_id": provider_id})
+            return StepResult(
+                status="succeeded",
+                summary="Workflow failure recorded on Jira",
+                outputs={"external_effects": [{"key": marker, "kind": "jira.failure_report", "provider_id": provider_id}]},
+            )
         ambiguities = inputs["ambiguities"]
         identifiers = sorted(item["id"] for item in ambiguities)
         identity = hashlib.sha256(

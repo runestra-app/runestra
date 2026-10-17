@@ -437,6 +437,71 @@ def test_parallel_failure_keeps_item_reserved(store):
     assert store.ingest("project", "commands", "jira", [{"id": "ONE"}]) == []
 
 
+def test_failure_handlers_run_after_restart_and_independently(store):
+    package = snapshot(EXAMPLE)
+    workflow = package["configuration"]["workflows"]["commands"]
+    workflow["steps"]["second"]["needs"] = ["first"]
+    workflow["on_failure"] = {
+        "report": {
+            "type": "action",
+            "argv": ["python3", "-c", "pass"],
+            "input_refs": {"reason": "failure.summary"},
+        },
+        "transition": {
+            "type": "action",
+            "argv": ["python3", "-c", "pass"],
+            "input_refs": {"issue": "inputs.issue"},
+        },
+    }
+    package["sha256"] = "failure-handlers"
+    store.register("project", package)
+    run = store.enqueue("project", "commands", {"issue": "TEST-1"})
+    assignment = store.claim("runner", ["project"])
+    store.complete(
+        "runner",
+        assignment["lease_id"],
+        assignment["generation"],
+        StepResult(status="failed", summary="Unit tests failed", error="TestFailure"),
+    )
+
+    store = Store(store.path)
+    report = store.claim("runner", ["project"])
+    assert report is not None, store.get_run(run)
+    assert report["step_name"] == "failure__report"
+    assert report["failure"]["summary"] == "Unit tests failed"
+    store.complete(
+        "runner", report["lease_id"], report["generation"],
+        StepResult(status="failed", summary="Jira comment unavailable", error="ConnectError"),
+    )
+    transition = store.claim("runner", ["project"])
+    assert transition["step_name"] == "failure__transition"
+    assert transition["inputs"] == {"issue": "TEST-1"}
+    store.complete(
+        "runner", transition["lease_id"], transition["generation"],
+        StepResult(status="succeeded", summary="Moved to Open Question"),
+    )
+    result = store.get_run(run)
+    assert result["status"] == "needs_attention"
+    assert next(step for step in result["steps"] if step["name"] == "second")["status"] == "skipped"
+
+
+def test_failure_handler_does_not_run_for_success(store):
+    package = snapshot(EXAMPLE)
+    package["configuration"]["workflows"]["commands"]["on_failure"] = {
+        "report": {"type": "action", "argv": ["python3", "-c", "pass"]}
+    }
+    package["sha256"] = "failure-handler-success"
+    store.register("project", package)
+    run = store.enqueue("project", "commands")
+    assignment = store.claim("runner", ["project"])
+    finish(store, assignment)
+    assignment = store.claim("runner", ["project"])
+    finish(store, assignment)
+    result = store.get_run(run)
+    assert result["status"] == "succeeded"
+    assert next(step for step in result["steps"] if step["name"] == "failure__report")["status"] == "skipped"
+
+
 def test_notification_outbox_tracks_each_state_change_and_stops_retrying(store):
     run = store.enqueue("project", "commands")
     with store.transaction() as db:

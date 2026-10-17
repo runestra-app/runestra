@@ -60,6 +60,22 @@ SCHEMAS = {
         },
         ("connection", "issue", "ambiguities"),
     ),
+    "jira.report_failure": object_schema(
+        {
+            "connection": TEXT,
+            "issue": TEXT,
+            "run_id": TEXT,
+            "failed_step": TEXT,
+            "status": TEXT,
+            "summary": TEXT,
+            "error": TEXT,
+            "attempt_id": TEXT,
+            "diagnostics": {"type": "object"},
+            "artifacts": {"type": "array", "items": {"type": "object"}},
+            "failures": {"type": "array", "items": {"type": "object"}},
+        },
+        ("connection", "issue", "run_id", "failed_step", "status", "summary", "error", "attempt_id"),
+    ),
     "jira.transition": object_schema(
         {"connection": TEXT, "issue": TEXT, "status": TEXT},
         ("connection", "issue", "status"),
@@ -216,6 +232,7 @@ ACTION_DESCRIPTIONS = {
     "github.get": "Read one GitHub issue.",
     "jira.discover": "Find Jira work items for a workflow.",
     "jira.comment": "Add a reconciled comment to a Jira issue.",
+    "jira.report_failure": "Record a workflow failure on its Jira work item.",
     "jira.transition": "Transition a Jira issue to a workflow status.",
     "git.prepare": "Create an isolated worktree for another configured repository.",
     "git.branch": "Create or resume a run branch in the pinned project checkout.",
@@ -243,7 +260,7 @@ ACTION_REGISTRY = {
         "capability": "action",
         "workspace": name.startswith("git.") or name == "coding.repair",
         "external_effect": name
-        in {"jira.comment", "jira.transition", "git.push", "git.pr", "github.open_pr"},
+        in {"jira.comment", "jira.report_failure", "jira.transition", "git.push", "git.pr", "github.open_pr"},
         "handler": (
             "core" if name == "core.needs_input" else
             "jira" if name.startswith("jira.") else
@@ -295,7 +312,7 @@ def action_requirements(configuration: dict) -> dict[str, dict[str, int]]:
     project_actions = configuration.get("actions", {})
     for workflow_name, workflow in configuration.get("workflows", {}).items():
         workflow_requirements = {}
-        for step in workflow.get("steps", {}).values():
+        for step in [*workflow.get("steps", {}).values(), *workflow.get("on_failure", {}).values()]:
             name = step.get("action")
             if name and name not in project_actions and name in ACTION_REGISTRY:
                 version = required_action_version(name, step.get("inputs", {}), step.get("input_refs", {}))

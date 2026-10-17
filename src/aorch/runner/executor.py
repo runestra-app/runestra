@@ -260,6 +260,7 @@ async def _execute(assignment, config, journal, cancelled):
     reference_context = {
         "inputs": assignment["inputs"],
         "steps": assignment.get("previous_results", {}),
+        "failure": assignment.get("failure") or {},
     }
     for key, reference in step.get("input_refs", {}).items():
         value = reference_context
@@ -270,6 +271,7 @@ async def _execute(assignment, config, journal, cancelled):
         "inputs": assignment["inputs"],
         "step_inputs": inputs,
         "steps": assignment.get("previous_results", {}),
+        "failure": assignment.get("failure") or {},
     }
     execution_dir = workspace / "code" if (workspace / "code").is_dir() else workspace
     custom = custom_actions.get(action_name)

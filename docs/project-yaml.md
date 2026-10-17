@@ -54,6 +54,7 @@ or action file paths are resolved. Those paths remain relative to `.aorch`.
 | `discovery` | Object, optional | `source` is a nonempty source name; `target_workflow` names another, non-discovery workflow in this project. |
 | `input_schema` | JSON Schema object, optional | `{"type": "object"}`. Must describe an object. Schema references and IDs must be local fragments. |
 | `steps` | Mapping from step ID to step, required | At least one step. Each ID is a public Python identifier and cannot start with `_`. |
+| `on_failure` | Mapping from handler ID to action step, optional | Runs after a step fails or needs attention. Handlers can reference workflow `inputs` and the `failure` object. Independent handlers continue if another handler fails. The run ends in `needs_attention` after reporting finishes. |
 | `max_active_runs` | Integer, optional | `1` or greater; default `1`. |
 | `interval_seconds` | Positive integer, optional | Legacy schedule supported in versions 1 and 2. Use only when `triggers` is absent. |
 | `triggers` | Array with zero or one trigger, optional | Version 2 only. Cannot be combined with `interval_seconds`. See trigger fields below. |
@@ -83,7 +84,7 @@ or action file paths are resolved. Those paths remain relative to `.aorch`.
 | `needs` | Array of step IDs | Empty. Names prerequisite steps; references must exist and the resulting graph must have no cycles. |
 | `when` | Condition string, optional | Evaluated before execution. May use `inputs` and available `steps` dotted references, literals, comparisons and Boolean operators. |
 | `inputs` | Object | Empty object. Literal inputs for an action or step. No implicit string interpolation. |
-| `input_refs` | Mapping from input name to dotted reference | Empty mapping. References start with `inputs` or `steps` and may read only workflow inputs or transitive prerequisite results. |
+| `input_refs` | Mapping from input name to dotted reference | Empty mapping. Normal steps can read `inputs` or prerequisite `steps`. Failure handlers can read `inputs` and `failure`. |
 | `argv` | Array of strings, optional | Direct executable and arguments for an action step. First element must be nonempty. No shell parsing. |
 | `action` | String, optional | Built-in or project-defined action name for an action step. Use exactly one of `action` and `argv`. |
 | `command` | String, optional | Required for `shell`; cannot be combined with `argv`, `action`, `profile`, `prompt` or `prompt_text`. |

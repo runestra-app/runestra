@@ -187,8 +187,8 @@ class Step(Contract):
             root = tree.body
             while isinstance(root, ast.Attribute):
                 root = root.value
-            if not isinstance(root, ast.Name) or root.id not in {"inputs", "steps"}:
-                raise ValueError("Input references must start at inputs or steps")
+            if not isinstance(root, ast.Name) or root.id not in {"inputs", "steps", "failure"}:
+                raise ValueError("Input references must start at inputs, steps or failure")
         if self.when:
             parse_condition(self.when)
         if self.result_schema is not None:
@@ -229,6 +229,7 @@ class Workflow(Contract):
     discovery: Discovery | None = None
     input_schema: dict[str, Any] = Field(default_factory=lambda: {"type": "object"})
     steps: dict[str, Step] = Field(min_length=1)
+    on_failure: dict[str, Step] = Field(default_factory=dict)
     max_active_runs: int = Field(default=1, ge=1)
     interval_seconds: int | None = Field(default=None, ge=1)
     triggers: list[PeriodicTrigger] = Field(default_factory=list)
@@ -300,6 +301,8 @@ class Workflow(Contract):
                 expressions.extend([step.summary_ref, step.content_ref])
             for expression in filter(None, expressions):
                 for node in ast.walk(parse_condition(expression)):
+                    if isinstance(node, ast.Name) and node.id == "failure":
+                        raise ValueError(f"Step {name} cannot reference failure context")
                     if (
                         isinstance(node, ast.Attribute)
                         and isinstance(node.value, ast.Name)
@@ -314,7 +317,51 @@ class Workflow(Contract):
                             raise ValueError(
                                 f"Step {name} condition references unavailable step {node.attr}"
                             )
+        if set(self.steps) & set(self.on_failure):
+            raise ValueError("Failure handler names must be unique from workflow steps")
+        visited_failure, active_failure = set(), set()
+
+        def visit_failure(name):
+            if name not in self.on_failure:
+                raise ValueError(f"Unknown failure handler dependency: {name}")
+            if name in active_failure:
+                raise ValueError(f"Failure handler dependency cycle at {name}")
+            if name in visited_failure:
+                return
+            active_failure.add(name)
+            for dependency in self.on_failure[name].needs:
+                visit_failure(dependency)
+            active_failure.remove(name)
+            visited_failure.add(name)
+
+        for name, step in self.on_failure.items():
+            if not name.isidentifier() or name.startswith("_"):
+                raise ValueError(f"Invalid failure handler identifier: {name}")
+            if step.type != "action" or step.when or step.repeat:
+                raise ValueError("Failure handlers must be unconditional action steps")
+            visit_failure(name)
+            for reference in step.input_refs.values():
+                root = reference.split(".", 1)[0]
+                if root not in {"inputs", "failure"}:
+                    raise ValueError("Failure handlers can reference only inputs and failure")
+                for node in ast.walk(parse_condition(reference)):
+                    if (
+                        isinstance(node, ast.Attribute)
+                        and isinstance(node.value, ast.Name)
+                        and node.value.id == "failure"
+                        and node.attr not in {
+                            "step", "status", "summary", "error", "attempt_id",
+                            "run_id", "diagnostics", "artifacts", "failures",
+                        }
+                    ):
+                        raise ValueError(f"Unknown failure context field: {node.attr}")
         return self
+
+    def all_steps(self):
+        return {
+            **self.steps,
+            **{f"failure__{name}": step for name, step in self.on_failure.items()},
+        }
 
 
 class ActionDefinition(Contract):
@@ -382,7 +429,7 @@ class ProjectConfig(Contract):
                     raise ValueError(
                         "Discovery cannot target another discovery workflow"
                     )
-            for name, step in workflow.steps.items():
+            for name, step in {**workflow.steps, **workflow.on_failure}.items():
                 approval_fingerprint = step.input_refs.get("approval_fingerprint")
                 if approval_fingerprint is not None:
                     prefix = "steps."
@@ -399,7 +446,7 @@ class ProjectConfig(Contract):
                     from aorch.extensions.schemas import validate_action
 
                     validate_action(step.action, step.inputs, step.input_refs)
-                if step.action in {"jira.discover", "jira.comment", "jira.transition"}:
+                if step.action in {"jira.discover", "jira.comment", "jira.report_failure", "jira.transition"}:
                     connection_name = step.inputs.get("connection")
                     if connection_name not in self.connections:
                         raise ValueError(

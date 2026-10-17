@@ -869,6 +869,82 @@
     },
     "workspace": false
   },
+  "jira.report_failure": {
+    "aliases": [],
+    "capability": "action",
+    "contract_version": 1,
+    "description": "Record a workflow failure on its Jira work item.",
+    "external_effect": true,
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "artifacts": {
+          "items": {
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "attempt_id": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "connection": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "diagnostics": {
+          "type": "object"
+        },
+        "error": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "failed_step": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "failures": {
+          "items": {
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "issue": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "run_id": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "status": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "summary": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "connection",
+        "issue",
+        "run_id",
+        "failed_step",
+        "status",
+        "summary",
+        "error",
+        "attempt_id"
+      ],
+      "type": "object"
+    },
+    "name": "jira.report_failure",
+    "output_schema": {
+      "additionalProperties": true,
+      "type": "object"
+    },
+    "workspace": false
+  },
   "jira.transition": {
     "aliases": [],
     "capability": "action",

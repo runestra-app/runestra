@@ -3,6 +3,7 @@ import hashlib
 import json
 import subprocess
 from pathlib import Path
+from types import SimpleNamespace
 
 import httpx
 import pytest
@@ -12,7 +13,7 @@ from aorch.config.service import RunnerConfig
 from aorch.extensions import devices
 from aorch.extensions import git as git_extension
 from aorch.extensions.git import git_action
-from aorch.extensions.jira import jira_action
+from aorch.extensions.jira import jira_action, plain_text
 from aorch.runner.agents import build_prompt, credential_source
 from aorch.runner.api_agent import run_api_agent
 from aorch.runner.executor import (
@@ -22,6 +23,58 @@ from aorch.runner.executor import (
     project_secret_names_context,
 )
 from aorch.runner.journal import Journal
+
+
+def test_git_verify_preserves_structured_failure_and_diagnostic_artifact(tmp_path, monkeypatch):
+    workspace = tmp_path / "run"
+    code = workspace / "code"
+    code.mkdir(parents=True)
+    (workspace / "workspace.json").write_text(json.dumps({"branch": "codex/test"}))
+    log_path = code / "output" / "verify.log"
+    log_path.parent.mkdir(parents=True)
+    log_path.write_text("xcodebuild test failure details")
+    log_data = log_path.read_bytes()
+    structured_result = json.dumps({
+        "status": "failed",
+        "summary": "Unit tests failed",
+        "error": "TestFailure",
+        "outputs": {"checks": [{"exit_code": 65}]},
+        "artifacts": [{
+            "path": "output/verify.log",
+            "sha256": hashlib.sha256(log_data).hexdigest(),
+            "size": len(log_data),
+        }],
+    })
+
+    async def fake_command(argv, cwd, config, journal, assignment, cancelled, timeout=300):
+        if argv[0] == "python3":
+            return structured_result
+        if argv[1] == "write-tree":
+            return "tree"
+        if argv[1] == "rev-parse":
+            return "a" * 40
+        return ""
+
+    monkeypatch.setattr("aorch.extensions.git.command", fake_command)
+    async def scenario():
+        return await git_action(
+            "git.verify",
+            {"commands": [["python3", "verify.py"]]},
+            {},
+            {"step": {"timeout_seconds": 60}, "attempt_id": "attempt", "run_id": "run"},
+            SimpleNamespace(workspace_root=tmp_path),
+            Journal(tmp_path / "journal.sqlite"),
+            asyncio.Event(),
+            workspace,
+        )
+
+    result = asyncio.run(scenario())
+    assert result.status == "failed"
+    assert result.summary == "Unit tests failed"
+    assert result.outputs["checks"][0]["exit_code"] == 65
+    assert result.outputs["verification_commands_not_run"] == []
+    assert result.artifacts[0].path == "code/output/verify.log"
+    assert result.artifacts[0].size == len(log_data)
 
 
 def settings(tmp_path):
@@ -131,6 +184,30 @@ def test_jira_discovery_and_comment_replay(tmp_path, monkeypatch):
                 )
             ).status == "succeeded"
         assert len(posted) == 1
+        failure = {
+            "connection": "jira",
+            "issue": "TEST-1",
+            "run_id": "run-123",
+            "failed_step": "verify",
+            "status": "failed",
+            "summary": "Unit tests failed",
+            "error": "credential secret",
+            "attempt_id": "attempt-123",
+            "diagnostics": {"result": "Failed"},
+            "artifacts": [{"path": "artifact-123", "size": 256}],
+        }
+        for _ in range(2):
+            assert (
+                await jira_action(
+                    "jira.report_failure", failure, connections, asyncio.Event(), tmp_path, transport
+                )
+            ).status == "succeeded"
+        assert len(posted) == 2
+        report_text = plain_text(posted[-1]["body"])
+        assert "artifact-123" in report_text
+        assert "[aorch:failure:run-123]" in report_text
+        assert "[REDACTED]" in report_text
+        assert "secret" not in report_text
 
     project_values = project_environment_context.set({"JIRA_TEST_TOKEN": "secret"})
     secret_names = project_secret_names_context.set(frozenset({"JIRA_TEST_TOKEN"}))

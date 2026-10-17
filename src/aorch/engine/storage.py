@@ -762,6 +762,11 @@ class Store(RuntimeStore):
                 "INSERT INTO steps(run,name,status) VALUES(?,?,?)",
                 (run, name, "pending"),
             )
+        for name in workflow.on_failure:
+            db.execute(
+                "INSERT INTO steps(run,name,status) VALUES(?,?,?)",
+                (run, f"failure__{name}", "skipped"),
+            )
         self._event(db, run, "run.queued")
         return run
 
@@ -925,6 +930,60 @@ class Store(RuntimeStore):
                 if step["result"]
             },
         }
+        failures = [
+            (name, steps[name])
+            for name in workflow.steps
+            if steps[name]["status"] in ("failed", "needs_attention")
+        ]
+        if failures and workflow.on_failure:
+            failed_name = failures[0][0]
+            context["failure"] = self._failure_context(db, run, workflow)
+            for normal_name in workflow.steps:
+                if steps[normal_name]["status"] == "pending":
+                    db.execute(
+                        "UPDATE steps SET status='skipped' WHERE run=? AND name=?",
+                        (run["id"], normal_name),
+                    )
+                    steps[normal_name]["status"] = "skipped"
+            for handler_name, definition in workflow.on_failure.items():
+                key = f"failure__{handler_name}"
+                handler = steps[key]
+                if handler["status"] == "skipped":
+                    db.execute(
+                        "UPDATE steps SET status='pending' WHERE run=? AND name=?",
+                        (run["id"], key),
+                    )
+                    handler["status"] = "pending"
+                if handler["status"] not in ("pending", "ready"):
+                    continue
+                dependencies = [
+                    steps[f"failure__{dependency}"]["status"]
+                    for dependency in definition.needs
+                ]
+                if any(status not in ("succeeded", "skipped") for status in dependencies):
+                    if any(status in ("failed", "needs_attention", "cancelled") for status in dependencies):
+                        db.execute(
+                            "UPDATE steps SET status='skipped' WHERE run=? AND name=?",
+                            (run["id"], key),
+                        )
+                        handler["status"] = "skipped"
+                    continue
+                db.execute(
+                    "UPDATE steps SET status='ready' WHERE run=? AND name=?",
+                    (run["id"], key),
+                )
+                handler["status"] = "ready"
+            handler_statuses = [
+                steps[f"failure__{name}"]["status"] for name in workflow.on_failure
+            ]
+            if all(
+                status in ("succeeded", "failed", "needs_attention", "cancelled", "skipped")
+                for status in handler_statuses
+            ):
+                db.execute("UPDATE runs SET status='needs_attention' WHERE id=?", (run["id"],))
+                db.execute("DELETE FROM resource_locks WHERE run=?", (run["id"],))
+                self._event(db, run["id"], "run.needs_attention", {"failed_step": failed_name})
+            return
         for name, definition in workflow.steps.items():
             step = steps[name]
             if step["status"] != "pending":
@@ -1015,10 +1074,48 @@ class Store(RuntimeStore):
             db.execute("DELETE FROM resource_locks WHERE run=?", (run["id"],))
 
     @staticmethod
+    def _failure_context(db, run, workflow):
+        failures = []
+        for name in workflow.steps:
+            step = db.execute(
+                "SELECT status,result FROM steps WHERE run=? AND name=?",
+                (run["id"], name),
+            ).fetchone()
+            if step is None or step["status"] not in ("failed", "needs_attention"):
+                continue
+            result = json.loads(step["result"] or "{}")
+            attempt = db.execute(
+                "SELECT id FROM attempts WHERE run=? AND step=? ORDER BY generation DESC LIMIT 1",
+                (run["id"], name),
+            ).fetchone()
+            failures.append({
+                "step": name,
+                "status": step["status"],
+                "summary": result.get("summary", "Workflow step failed"),
+                "error": result.get("error") or "UnknownError",
+                "attempt_id": attempt["id"] if attempt else "unknown",
+                "diagnostics": result.get("outputs", {}),
+                "artifacts": result.get("artifacts", []),
+            })
+        if failures:
+            return {**failures[0], "run_id": run["id"], "failures": failures}
+        return {
+            "step": "unknown",
+            "status": "failed",
+            "summary": "Workflow step failed",
+            "error": "UnknownError",
+            "attempt_id": "unknown",
+            "run_id": run["id"],
+            "diagnostics": {},
+            "artifacts": [],
+            "failures": [],
+        }
+
+    @staticmethod
     def _resolve_reference(context, reference):
         parts = reference.split(".")
-        if len(parts) < 2 or parts[0] not in {"steps", "inputs"}:
-            raise ValueError("Reference must use a dotted steps or inputs path")
+        if len(parts) < 2 or parts[0] not in {"steps", "inputs", "failure"}:
+            raise ValueError("Reference must use a dotted steps, inputs or failure path")
         value = context[parts[0]]
         for part in parts[1:]:
             if part.startswith("_"):
@@ -1153,9 +1250,10 @@ class Store(RuntimeStore):
                 if affinity and affinity[0] != runner:
                     continue
                 package, workflow = self._workflow(db, run["revision"], run["workflow"])
+                all_steps = workflow.all_steps()
                 if protocol_version != PROTOCOL_VERSION and any(
                     step.type == "agent" and step.prompt_text is not None
-                    for step in workflow.steps.values()
+                    for step in all_steps.values()
                 ):
                     continue
                 required_contracts = package.get("action_contracts", {}).get(
@@ -1172,14 +1270,14 @@ class Store(RuntimeStore):
                     else "shell"
                     if step.type == "shell"
                     else package["configuration"]["profiles"][step.profile]["adapter"]
-                    for step in workflow.steps.values()
+                    for step in all_steps.values()
                     if step.type != "approval"
                 }
                 if adapters is not None and not required.issubset(adapters):
                     continue
                 required_resources = {
                     resource
-                    for definition in workflow.steps.values()
+                    for definition in all_steps.values()
                     for resource in definition.resources
                 }
                 if resources is not None and not required_resources.issubset(resources):
@@ -1262,7 +1360,7 @@ class Store(RuntimeStore):
                     "workflow_name": run["workflow"],
                     "workspace_key": run["item"] or run["id"],
                     "step_name": step["name"],
-                    "step": workflow.steps[step["name"]].model_dump(mode="json"),
+                    "step": all_steps[step["name"]].model_dump(mode="json"),
                     "inputs": json.loads(run["inputs"]),
                     "previous_results": {
                         row["name"]: json.loads(row["result"])
@@ -1271,6 +1369,11 @@ class Store(RuntimeStore):
                             (run["id"],),
                         )
                     },
+                    "failure": (
+                        self._failure_context(db, run, workflow)
+                        if step["name"].startswith("failure__")
+                        else None
+                    ),
                     "package": package,
                     "project_environment": {
                         item["name"]: item["value"] for item in project_environment
@@ -1326,7 +1429,7 @@ class Store(RuntimeStore):
             if attempt["status"] != "running" or run["status"] != "running":
                 raise StateConflict("Assignment requires reconciliation or is terminal")
             package, workflow = self._workflow(db, run["revision"], run["workflow"])
-            definition = workflow.steps[attempt["step"]]
+            definition = workflow.all_steps()[attempt["step"]]
             if definition.action:
                 from aorch.extensions.schemas import validate_action_result
 
@@ -1387,7 +1490,31 @@ class Store(RuntimeStore):
                 "step.completed",
                 {"step": attempt["step"], "attempt": attempt["id"], "status": status},
             )
-            if status not in ("succeeded", "ready"):
+            is_failure_handler = attempt["step"].startswith("failure__")
+            starts_failure_handling = (
+                not is_failure_handler
+                and status in ("failed", "needs_attention")
+                and bool(workflow.on_failure)
+            )
+            if starts_failure_handling or (is_failure_handler and status not in ("succeeded", "ready")):
+                siblings = db.execute(
+                    "SELECT 1 FROM attempts WHERE run=? AND status IN ('running','reconciling')",
+                    (run["id"],),
+                ).fetchone()
+                if siblings:
+                    run_status = "reconciling"
+                else:
+                    run_status = "running"
+                db.execute("UPDATE runs SET status=? WHERE id=?", (run_status, run["id"]))
+                self._event(
+                    db,
+                    run["id"],
+                    "run.failure_handling.started" if starts_failure_handling else "run.failure_handling.continued",
+                    {"step": attempt["step"]},
+                )
+                if not siblings:
+                    self._advance(db, run)
+            elif status not in ("succeeded", "ready"):
                 siblings = db.execute(
                     "SELECT 1 FROM attempts WHERE run=? AND status IN ('running','reconciling')",
                     (run["id"],),

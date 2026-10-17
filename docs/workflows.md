@@ -73,6 +73,42 @@ Jira, device testing, and coding repair. Use schemas to validate the data passed
 between a project step and its action. Never put credentials in this file or in
 a prompt.
 
+Use `on_failure` when a workflow must report technical failures before it
+stops. Handlers run after a failed or attention-required step and receive
+`failure.step`, `failure.status`, `failure.summary`, `failure.error`,
+`failure.run_id`, `failure.attempt_id`, `failure.diagnostics`, and
+`failure.artifacts`. `failure.failures` lists every failed step when multiple
+steps fail at once. Independent handlers continue if another handler fails.
+The run ends in `needs_attention` after reporting finishes.
+
+```yaml
+    on_failure:
+      report:
+        type: action
+        action: jira.report_failure
+        inputs: {connection: jira}
+        input_refs:
+          issue: inputs.work_item.id
+          run_id: failure.run_id
+          failed_step: failure.step
+          status: failure.status
+          summary: failure.summary
+          error: failure.error
+          attempt_id: failure.attempt_id
+          diagnostics: failure.diagnostics
+          artifacts: failure.artifacts
+          failures: failure.failures
+      open_question:
+        type: action
+        action: jira.transition
+        inputs: {connection: jira, status: Open Question}
+        input_refs: {issue: inputs.work_item.id}
+```
+
+Handlers do not run for a successful workflow or an explicit cancellation.
+They use the same runner and project credentials as normal steps. A retried
+failure report uses the workflow run ID to avoid a duplicate Jira comment.
+
 Validate the project before adding it in the browser. An online runner assigned
 to the project fetches its repository and returns the workflow configuration:
 

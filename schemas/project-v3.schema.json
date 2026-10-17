@@ -543,6 +543,13 @@
           "title": "Max Active Runs",
           "type": "integer"
         },
+        "on_failure": {
+          "additionalProperties": {
+            "$ref": "#/$defs/Step"
+          },
+          "title": "On Failure",
+          "type": "object"
+        },
         "steps": {
           "additionalProperties": {
             "$ref": "#/$defs/Step"

@@ -376,8 +376,52 @@ async def git_action(
                     f"Workspace contains changes outside the declared paths: {sorted(unexpected)}"
                 )
         before = await fingerprint()
-        for argv in commands:
-            await run(argv, timeout=assignment["step"]["timeout_seconds"])
+        diagnostics = []
+        artifacts = []
+        for command_index, argv in enumerate(commands):
+            output = await run(argv, timeout=assignment["step"]["timeout_seconds"])
+            try:
+                structured = json.loads(output)
+            except json.JSONDecodeError:
+                structured = None
+            if not isinstance(structured, dict) or structured.get("status") not in {
+                "succeeded", "failed", "needs_attention"
+            }:
+                continue
+            diagnostics.append({
+                "summary": structured.get("summary", ""),
+                **structured.get("outputs", {}),
+            })
+            for item in structured.get("artifacts", []):
+                relative = PurePosixPath(item.get("path", ""))
+                path = code / Path(*relative.parts)
+                if (
+                    relative.is_absolute()
+                    or ".." in relative.parts
+                    or not relative.parts
+                    or not path.resolve().is_relative_to(code.resolve())
+                    or not path.is_file()
+                ):
+                    raise ValueError("Verification returned an invalid diagnostic artifact path")
+                data = path.read_bytes()
+                if len(data) != item.get("size") or hashlib.sha256(data).hexdigest() != item.get("sha256"):
+                    raise ValueError("Verification diagnostic artifact changed before upload")
+                artifacts.append(
+                    Artifact.model_validate({
+                        **item,
+                        "path": (Path("code") / Path(*relative.parts)).as_posix(),
+                    })
+                )
+            if structured["status"] != "succeeded":
+                outputs = dict(structured.get("outputs", {}))
+                outputs["verification_commands_not_run"] = commands[command_index + 1 :]
+                return StepResult(
+                    status=structured["status"],
+                    summary=structured.get("summary", "Verification failed"),
+                    error=structured.get("error", "VerificationFailure"),
+                    outputs=outputs,
+                    artifacts=artifacts,
+                )
         if before != await fingerprint():
             raise ValueError(
                 "Tests changed workspace content; verification invalidated"
@@ -388,8 +432,12 @@ async def git_action(
         )
         return StepResult(
             status="succeeded",
-            summary="Tests passed",
+            summary="; ".join(
+                str(item.get("summary", "Verification passed"))
+                for item in diagnostics
+            ) or "Tests passed",
             outputs={"verified": True, "fingerprint": before},
+            artifacts=artifacts,
             workspace_revision=revision,
         )
     verification = json.loads((workspace / "verified.json").read_text())

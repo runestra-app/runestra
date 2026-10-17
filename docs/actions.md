@@ -22,6 +22,7 @@ they accept any nonempty string. Unknown input fields are rejected.
 | `github.get` | Required: `connection`, `repository` (`OWNER/REPOSITORY`), `issue` (integer at least `1`). |
 | `jira.discover` | Required: `connection` (project Jira connection name). Optional: `jql` (text), `assignee` (text), `status` (text), `project` (text). Provide `jql`, or both `assignee` and `status`; `project` further filters the generated query. |
 | `jira.comment` | Required: `connection`, `issue` (Jira key), `ambiguities` (array with at least one item). Each item requires nonempty `id` and `question` strings. Adds a reconciled comment asking the listed questions. |
+| `jira.report_failure` | Required: `connection`, `issue`, `run_id`, `failed_step`, `status`, `summary`, `error`, and `attempt_id`. Optional: structured `diagnostics` and uploaded `artifacts`. Adds one idempotent technical failure report comment. |
 | `jira.transition` | Required: `connection`, `issue`, `status` (target status name). Jira must expose an available transition to that status. |
 
 GitHub connections are configured on the runner as a named mapping with a

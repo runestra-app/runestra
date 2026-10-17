@@ -241,6 +241,7 @@ Each Jira connection declares its HTTPS `url`, optional `email`, and the
 | `github.get` | `connection`, `repository`, `issue` | None. |
 | `jira.discover` | `connection` | `jql`, `assignee`, `status`, `project`. Provide `jql`, or both `assignee` and `status`. |
 | `jira.comment` | `connection`, `issue`, `ambiguities` | None. Each ambiguity has required string fields `id` and `question`. |
+| `jira.report_failure` | `connection`, `issue`, `run_id`, `failed_step`, `status`, `summary`, `error`, `attempt_id` | Optional diagnostic object and artifact list. Writes one idempotent failure report comment. |
 | `jira.transition` | `connection`, `issue`, `status` | None. Transitions to the named status when Jira exposes an available transition. |
 | `git.prepare` | `repository` | `item_id`, `base` |
 | `git.branch` | None |

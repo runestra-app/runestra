@@ -32,7 +32,7 @@ def parse_condition(expression: str) -> ast.Expression:
     for node in ast.walk(tree):
         if not isinstance(node, _ALLOWED):
             raise ValueError(f"Forbidden condition syntax: {ast.dump(node)}")  # noqa: TRY004
-        if isinstance(node, ast.Name) and node.id not in {"steps", "inputs"}:
+        if isinstance(node, ast.Name) and node.id not in {"steps", "inputs", "failure"}:
             raise ValueError(f"Unknown condition root: {node.id}")
         if isinstance(node, ast.Attribute) and node.attr.startswith("_"):
             raise ValueError("Private attributes are forbidden")
