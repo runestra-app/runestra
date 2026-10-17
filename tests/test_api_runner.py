@@ -426,8 +426,21 @@ def test_auth_session_csrf_rotation_and_events(tmp_path):
         page = client.get("/")
         assert page.status_code == 200
         assert 'href="/static/styles.css"' in page.text
+        assert 'href="/static/favicon-v2.svg"' in page.text
+        assert 'src="/static/runestra-mark-mint.svg"' in page.text
+        assert 'src="/static/runestra-mark-dark.svg"' in page.text
+        assert 'class="brand-mark"' not in page.text
         assert client.get("/static/styles.css").status_code == 200
         assert client.get("/static/app.js").status_code == 200
+        for asset in (
+            "favicon.svg",
+            "favicon-v2.svg",
+            "runestra-mark-mint.svg",
+            "runestra-mark-dark.svg",
+        ):
+            response = client.get(f"/static/{asset}")
+            assert response.status_code == 200
+            assert "<svg" in response.text
         assert client.get("/admin/state").status_code == 401
         assert (
             client.post("/runner/register", json={"runner_id": "runner"}).status_code

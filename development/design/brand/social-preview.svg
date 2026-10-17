@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-labelledby="title desc">
+  <title id="title">Runestra, workflows in Git, runs on your machines</title>
+  <desc id="desc">A dark technical brand card for the open-source workflow engine Runestra.</desc>
+  <rect width="1200" height="630" fill="#0b1220" />
+  <rect x="64" y="64" width="1072" height="502" rx="12" fill="none" stroke="#29333a" />
+  <image x="100" y="100" width="295" height="64" href="runestra-lockup.svg" />
+  <path d="M100 221h68" stroke="#75dfbd" stroke-width="3" />
+  <text x="100" y="291" fill="#f3f5f4" font-family="Inter, Arial, sans-serif" font-size="53" font-weight="600" letter-spacing="-2.6">Your repository defines</text>
+  <text x="100" y="357" fill="#f3f5f4" font-family="Inter, Arial, sans-serif" font-size="53" font-weight="600" letter-spacing="-2.6">the workflow. Your machines run it.</text>
+  <text x="100" y="414" fill="#a3afac" font-family="Inter, Arial, sans-serif" font-size="22">AI agents and shell checks, coordinated by an engine you control.</text>
+  <text x="100" y="507" fill="#75dfbd" font-family="Inter, Arial, sans-serif" font-size="15" font-weight="600" letter-spacing="2">OPEN SOURCE  ·  APACHE-2.0</text>
+  <text x="1098" y="511" fill="#87938f" text-anchor="end" font-family="Inter, Arial, sans-serif" font-size="15">github.com/runestra-app/runestra</text>
+</svg>

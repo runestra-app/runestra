@@ -8,6 +8,8 @@ setup and operation guides are under [`docs/`](../docs/README.md).
   implementation details.
 - [`design-system.md`](design-system.md): web console design conventions.
 - [`design/`](design/): proposals and contracts for planned changes.
+- [`design/brand-and-landing-page-plan.md`](design/brand-and-landing-page-plan.md):
+  plan to finish the Runestra logo, visual identity and landing page.
 - [`archive/`](archive/): superseded planning documents and historical records.
 - [`evidence/`](evidence/): dated verification notes.
 
