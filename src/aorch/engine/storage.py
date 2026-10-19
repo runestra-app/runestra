@@ -45,7 +45,7 @@ class Store(RuntimeStore):
             db.close()
         with self.transaction() as db:
             version = db.execute("PRAGMA user_version").fetchone()[0]
-            if version > 17:
+            if version > 18:
                 raise StateConflict("Database version is newer than this engine")
             if version == 0:
                 statements = [
