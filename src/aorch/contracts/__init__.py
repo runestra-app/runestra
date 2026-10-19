@@ -82,6 +82,7 @@ class Completion(AssignmentRequest):
 class StopConfirmation(AssignmentRequest):
     stopped: bool = True
     uncertain: bool = True
+    result: StepResult | None = None
 
 
 class RunnerEvent(AssignmentRequest):

@@ -1,7 +1,6 @@
 """Outgoing runner protocol with leases and durable result replay."""
 
 import asyncio
-from datetime import datetime
 import json
 import os
 import signal
@@ -9,6 +8,7 @@ import subprocess
 import tempfile
 import time
 import uuid
+from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -427,7 +427,13 @@ class Runner:
         log_context.reset(log_token)
         self.journal.completed(assignment["attempt_id"], result.model_dump(mode="json"))
         if lease_lost:
-            await self.post("/runner/stopped", {**identity, "uncertain": True})
+            stopped_result = result.model_dump(mode="json")
+            stopped_result["artifacts"] = []
+            stopped_result["log_manifest"] = None
+            await self.post(
+                "/runner/stopped",
+                {**identity, "uncertain": True, "result": stopped_result},
+            )
             self.journal.delivered(assignment["attempt_id"])
             return
         # Persist first; reconnect can replay after any interruption here.

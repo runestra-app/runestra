@@ -664,7 +664,8 @@ def create_app(config: EngineConfig):
     @app.post("/runner/stopped")
     def stopped(body: StopConfirmation, identity: Annotated[dict, Depends(runner)]):
         store.acknowledge_stop(
-            identity["id"], body.lease_id, body.generation, body.uncertain, body.stopped
+            identity["id"], body.lease_id, body.generation, body.uncertain,
+            body.stopped, body.result
         )
         return {"accepted": True}
 

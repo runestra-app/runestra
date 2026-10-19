@@ -1,5 +1,6 @@
 """Isolated Git workspaces, verification and reconcilable publication actions."""
 
+import asyncio
 import hashlib
 import json
 import re
@@ -37,6 +38,11 @@ async def git_action(
 
     async def run(argv, cwd=code, timeout=300):
         return await command(argv, cwd, config, journal, assignment, cancelled, timeout)
+
+    async def run_checkpoint(argv):
+        return await command(
+            argv, code, config, journal, assignment, asyncio.Event(), timeout=15
+        )
 
     if name == "git.branch":
         repository = assignment["package"].get("repository", {}).get("git")
@@ -185,6 +191,64 @@ async def git_action(
             if logger:
                 logger("repair", {"message": message, **details})
 
+        async def handoff_checkpoint(role, iteration_number, outcome_status, outcome_summary):
+            branch = context.get("steps", {}).get("branch", {}).get("outputs", {})
+            try:
+                current_commit = await run_checkpoint(["git", "rev-parse", "HEAD"])
+                worktree_status = await run_checkpoint(
+                    ["git", "status", "--short", "--untracked-files=all"]
+                )
+            except (OSError, TimeoutError, ValueError):
+                current_commit = None
+                worktree_status = ""
+            implemented = context.get("implement", {})
+            reviewed = context.get("review", {})
+            analysis = context.get("steps", {}).get("analyze", {})
+            plan = context.get("steps", {}).get("plan", {})
+            analysis_outputs = analysis.get("outputs", {})
+            plan_outputs = plan.get("outputs", {})
+            return {
+                "version": 1,
+                "state": "interrupted",
+                "iteration": iteration_number,
+                "interrupted_role": role,
+                "branch": branch.get("branch"),
+                "starting_commit": branch.get("starting_commit"),
+                "current_commit": current_commit,
+                "worktree_status": worktree_status.splitlines()[:100],
+                "analysis": {
+                    "decision": analysis_outputs.get("decision"),
+                    "summary": " ".join(
+                        str(analysis.get("summary", "")).split()
+                    )[:1200],
+                    "details": str(analysis_outputs.get("details", ""))[:3000],
+                },
+                "plan": {
+                    "decision": plan_outputs.get("decision"),
+                    "summary": " ".join(
+                        str(plan.get("summary", "")).split()
+                    )[:1200],
+                    "details": str(plan_outputs.get("details", ""))[:6000],
+                },
+                "implementation": {
+                    "status": implemented.get("status", "not_started"),
+                    "summary": " ".join(
+                        str(implemented.get("summary", "")).split()
+                    )[:1200],
+                },
+                "review": {
+                    "status": outcome_status,
+                    "summary": " ".join(str(outcome_summary).split())[:1200],
+                    "approved": reviewed.get("outputs", {}).get("approved"),
+                },
+                "verification": "not_run",
+                "next_step": (
+                    "Inspect the saved branch and worktree, then continue the review and run the configured checks."
+                    if role == "review"
+                    else "Inspect the saved branch and worktree, then continue implementation."
+                ),
+            }
+
         last_outcome = "No review or test result was recorded"
         for iteration in range(limit):
             iteration_number = iteration + 1
@@ -230,6 +294,12 @@ async def git_action(
                     status=result.status,
                 )
                 if result.status != "succeeded":
+                    result.outputs = {
+                        **result.outputs,
+                        "handoff": await handoff_checkpoint(
+                            role, iteration_number, result.status, role_summary
+                        ),
+                    }
                     result.summary = (
                         f"{role.capitalize()} failed in repair iteration "
                         f"{iteration_number}/{limit}: {role_summary}"
@@ -336,7 +406,13 @@ async def git_action(
         )
         repair_log(summary, iteration_limit=limit, status="needs_attention")
         return StepResult(
-            status="needs_attention", summary=summary
+            status="needs_attention",
+            summary=summary,
+            outputs={
+                "handoff": await handoff_checkpoint(
+                    "review", limit, "needs_attention", last_outcome
+                )
+            },
         )
     if name == "git.verify":
         commands = inputs["commands"]

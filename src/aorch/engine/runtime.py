@@ -6,7 +6,7 @@ import secrets
 import sqlite3
 import time
 
-from aorch.contracts import PROTOCOL_VERSION
+from aorch.contracts import PROTOCOL_VERSION, StepResult
 from aorch.engine.errors import StateConflict
 
 
@@ -156,7 +156,7 @@ class RuntimeStore:
             self._event(db, run, "run.cancel_requested")
 
     def acknowledge_stop(
-        self, runner, lease, generation, uncertain=False, stopped=True
+        self, runner, lease, generation, uncertain=False, stopped=True, result=None
     ):
         """Confirm process exit without pretending an external effect was undone."""
         with self.transaction() as db:
@@ -175,26 +175,57 @@ class RuntimeStore:
                 )
                 return
             status = "needs_attention" if uncertain else "cancelled"
+            partial_result = (
+                StepResult.model_validate(result) if result is not None else None
+            )
+            encoded_result = None
+            if partial_result is not None:
+                partial_data = partial_result.model_dump(mode="json")
+                if status == "needs_attention":
+                    partial_data["outputs"] = {
+                        **partial_data.get("outputs", {}),
+                        "stopped_result_status": partial_result.status,
+                    }
+                    partial_data["status"] = status
+                encoded_result = json.dumps(partial_data)
             db.execute(
-                "UPDATE attempts SET status=? WHERE id=?", (status, attempt["id"])
+                "UPDATE attempts SET status=?,result=COALESCE(?,result) WHERE id=?",
+                (status, encoded_result, attempt["id"]),
             )
             db.execute(
-                "UPDATE steps SET status=? WHERE run=? AND name=?",
-                (status, run, attempt["step"]),
+                "UPDATE steps SET status=?,result=COALESCE(?,result) WHERE run=? AND name=?",
+                (status, encoded_result, run, attempt["step"]),
             )
             remaining = db.execute(
                 "SELECT 1 FROM attempts WHERE run=? AND status IN ('running','reconciling')",
                 (run,),
             ).fetchone()
             if not remaining:
-                terminal = db.execute(
-                    "SELECT status FROM steps WHERE run=? AND status IN ('needs_attention','failed','needs_input') LIMIT 1",
+                failure = db.execute(
+                    "SELECT 1 FROM steps WHERE run=? AND status IN ('needs_attention','failed') LIMIT 1",
                     (run,),
                 ).fetchone()
-                db.execute(
-                    "UPDATE runs SET status=? WHERE id=?",
-                    (terminal[0] if terminal else status, run),
-                )
+                run_row = db.execute("SELECT * FROM runs WHERE id=?", (run,)).fetchone()
+                _, workflow = self._workflow(db, run_row["revision"], run_row["workflow"])
+                if failure and workflow.on_failure:
+                    db.execute("UPDATE runs SET status='running' WHERE id=?", (run,))
+                    self._event(
+                        db,
+                        run,
+                        "run.failure_handling.started",
+                        {"step": attempt["step"], "source": "attempt.stopped"},
+                    )
+                    run_row = db.execute("SELECT * FROM runs WHERE id=?", (run,)).fetchone()
+                    self._advance(db, run_row)
+                else:
+                    terminal = db.execute(
+                        "SELECT status FROM steps WHERE run=? AND status IN ('needs_attention','failed','needs_input') LIMIT 1",
+                        (run,),
+                    ).fetchone()
+                    db.execute(
+                        "UPDATE runs SET status=? WHERE id=?",
+                        (terminal[0] if terminal else status, run),
+                    )
                 db.execute("DELETE FROM resource_locks WHERE run=?", (run,))
             self._event(
                 db,
