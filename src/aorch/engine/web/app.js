@@ -12,6 +12,7 @@ let projectId = null;
 let workflowId = null;
 let runId = null;
 let logTimer = null;
+let durationTimer = null;
 let selectedAttempt = null;
 let organizations = [];
 let activeOrganization = null;
@@ -95,6 +96,18 @@ function formatDuration(seconds) {
   if (hours) return `${hours}h ${minutes}m`;
   if (minutes) return `${minutes}m ${remaining}s`;
   return `${remaining}s`;
+}
+
+function updateDurationLabels() {
+  const now = Date.now() / 1000;
+  document.querySelectorAll("[data-duration-start]").forEach(element => {
+    const start = Number(element.dataset.durationStart);
+    const end = element.dataset.durationEnd ? Number(element.dataset.durationEnd) : now;
+    element.textContent = formatDuration(Math.max(0, end - start));
+  });
+  document.querySelectorAll("[data-duration-base][data-duration-since]").forEach(element => {
+    element.textContent = formatDuration(Number(element.dataset.durationBase) + Math.max(0, now - Number(element.dataset.durationSince)));
+  });
 }
 
 function makeButton(text, callback, className = "button button-secondary") {
@@ -245,6 +258,7 @@ function clearRunDetail() {
   byId("run-status").replaceChildren();
   byId("run-usage").replaceChildren();
   byId("run-usage").classList.add("hidden");
+  byId("run-timing").replaceChildren();
   byId("pipeline").replaceChildren();
   byId("details").textContent = "";
   byId("artifacts").replaceChildren();
@@ -510,7 +524,7 @@ function renderRuns() {
   list.className = "run-list";
   const header = document.createElement("div");
   header.className = "run-list-header";
-  for (const value of ["Run", "Status", "Started", "Actions"]) {
+  for (const value of ["Run", "Status", "Started", "Duration", "Actions"]) {
     const cell = document.createElement("span");
     cell.textContent = value;
     header.append(cell);
@@ -528,6 +542,17 @@ function renderRuns() {
     const created = document.createElement("span");
     created.className = "run-meta run-created";
     created.textContent = formatTime(run.created);
+    const duration = document.createElement("span");
+    duration.className = "run-meta run-duration";
+    if (run.finished || activeStatuses.has(run.status)) {
+      duration.dataset.durationStart = run.created;
+      if (run.finished) duration.dataset.durationEnd = run.finished;
+    }
+    duration.textContent = run.finished
+      ? formatDuration(Math.max(0, run.finished - run.created))
+      : activeStatuses.has(run.status)
+        ? formatDuration(Math.max(0, Date.now() / 1000 - run.created))
+        : "Unavailable";
     const controls = document.createElement("div");
     controls.className = "run-controls";
     if (run.blocked_reason) controls.append(makePill(run.blocked_reason));
@@ -556,7 +581,7 @@ function renderRuns() {
       if (run.keep_forever) remove.title = "Remove Keep forever before deleting this run";
       controls.append(remove);
     }
-    row.append(open, status, created, controls);
+    row.append(open, status, created, duration, controls);
     list.append(row);
   }
   box.append(list);
@@ -972,12 +997,38 @@ async function detail(id) {
   byId("run-detail").classList.remove("hidden");
   byId("run-title").textContent = `Run ${id.slice(0, 8)}`;
   byId("run-status").replaceChildren(makePill(data.status, data.status));
+  const timing = byId("run-timing");
+  timing.replaceChildren();
+  const timingItems = [
+    ["Total duration", data.run_seconds],
+    ["Execution time", data.execution_seconds],
+    ["Waiting time", data.waiting_seconds],
+    ["Reconciliation", data.reconciliation_seconds]
+  ];
+  for (const [labelText, seconds] of timingItems) {
+    const item = document.createElement("div");
+    item.className = "run-timing-item";
+    const label = document.createElement("span");
+    label.className = "muted";
+    label.textContent = labelText;
+    const value = document.createElement("b");
+    value.textContent = Number.isFinite(seconds) ? formatDuration(seconds) : "Unavailable";
+    if (labelText === "Total duration" && !data.finished) {
+      value.dataset.durationStart = data.created;
+    }
+    if (labelText === "Execution time" && Number.isFinite(seconds) && data.attempts.some(attempt => attempt.status === "running" && Number.isFinite(attempt.execution_seconds))) {
+      value.dataset.durationBase = seconds;
+      value.dataset.durationSince = data.measured_at;
+    }
+    item.append(label, value);
+    timing.append(item);
+  }
   renderPipeline(data);
   renderUsage(data);
   renderActivity(data);
   renderApprovals(data);
   renderQuestions(data);
-  byId("details").textContent = JSON.stringify({ repository: data.repository, steps: data.steps, attempts: data.attempts, events: data.events }, null, 2);
+  byId("details").textContent = JSON.stringify({ repository: data.repository, timing: { total_seconds: data.run_seconds, execution_seconds: data.execution_seconds, waiting_seconds: data.waiting_seconds, reconciliation_seconds: data.reconciliation_seconds }, steps: data.steps, attempts: data.attempts, events: data.events }, null, 2);
   const artifacts = byId("artifacts");
   artifacts.replaceChildren();
   for (const artifact of data.artifacts || []) {
@@ -1149,6 +1200,7 @@ async function refresh() {
     render();
     if (runId) await detail(runId);
     if (!refreshTimer) refreshTimer = window.setInterval(() => refresh().catch(showError), 15000);
+    if (!durationTimer) durationTimer = window.setInterval(updateDurationLabels, 1000);
     if (!eventStream) {
       eventStream = new EventSource("/admin/events");
       eventStream.onmessage = () => {

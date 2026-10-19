@@ -88,7 +88,7 @@ content. Empty states should say what is missing and give the next useful step.
 - **Project row:** name, compact project status, selected background.
 - **Workflow row:** branch marker and workflow name. Selected workflow uses the
   same accent surface as the selected project.
-- **Run row:** run identifier, status, start time, and applicable controls.
+- **Run row:** run identifier, status, start time, total duration, and applicable controls. Run details separate execution, waiting, and reconciliation time.
 - **Step node:** step name, status, executor type, and dependency links. Graph
   edges represent only declared `needs` relationships.
 - **System table:** use for runners and resource locks, with concise column

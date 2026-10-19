@@ -1251,9 +1251,20 @@ def create_app(config: EngineConfig):
                     "SELECT * FROM events WHERE run=? ORDER BY id", (run,)
                 )
             ]
+            detail["status_history"] = [dict(row) for row in db.execute(
+                "SELECT status,created FROM run_status_history WHERE run=? ORDER BY created,id", (run,)
+            )]
+            terminal_statuses = ("succeeded", "failed", "cancelled", "needs_input", "needs_attention")
+            detail["run_seconds"] = (
+                max(0, (detail["finished"] if detail["finished"] is not None else time.time()) - detail["created"])
+                if detail["status"] not in terminal_statuses or detail["finished"] is not None
+                else None
+            )
             attempts_by_id = {attempt["id"]: attempt for attempt in detail["attempts"]}
             started_at = {}
             completed_at = {}
+            execution_started_at = {}
+            execution_completed_at = {}
             pending_by_step = {}
             for event in detail["events"]:
                 try:
@@ -1268,6 +1279,14 @@ def create_app(config: EngineConfig):
                     if attempt:
                         started_at[attempt_id] = event["created"]
                         pending_by_step.setdefault(attempt["step"], []).append(attempt_id)
+                elif event["kind"] == "runner.event":
+                    attempt_id = payload.get("attempt")
+                    data = payload.get("data") or {}
+                    if attempt_id in attempts_by_id and isinstance(data, dict):
+                        if data.get("kind") == "step.started":
+                            execution_started_at.setdefault(attempt_id, event["created"])
+                        elif data.get("kind") == "step.completed":
+                            execution_completed_at[attempt_id] = event["created"]
                 elif event["kind"] == "step.completed":
                     attempt_id = payload.get("attempt")
                     step_name = payload.get("step")
@@ -1281,16 +1300,61 @@ def create_app(config: EngineConfig):
                         if pending:
                             completed_at[pending.pop(0)] = event["created"]
             now = time.time()
+            detail["measured_at"] = now
+            execution_timing_complete = True
             for attempt in detail["attempts"]:
                 start = started_at.get(attempt["id"])
                 end = completed_at.get(attempt["id"])
                 attempt["started_at"] = start
                 attempt["completed_at"] = end
+                execution_start = execution_started_at.get(attempt["id"])
+                execution_end = execution_completed_at.get(attempt["id"], end)
+                attempt["execution_started_at"] = execution_start
+                attempt["execution_completed_at"] = execution_end
+                attempt["execution_seconds"] = (
+                    max(0, (execution_end if execution_end is not None else now) - execution_start)
+                    if execution_start is not None and (execution_end is not None or attempt["status"] in ("running", "reconciling"))
+                    else None
+                )
+                if execution_start is None or (
+                    execution_end is None and attempt["status"] not in ("running",)
+                ):
+                    execution_timing_complete = False
                 attempt["duration_seconds"] = (
                     max(0, (end if end is not None else now) - start)
                     if start is not None and (end is not None or attempt["status"] in ("running", "reconciling"))
                     else None
                 )
+            # Count overlapping attempts once. Reconciliation is tracked from
+            # status transitions and kept separate from waiting and execution.
+            intervals = sorted(
+                (attempt["execution_started_at"], attempt["execution_completed_at"] or now)
+                for attempt in detail["attempts"] if attempt["execution_seconds"] is not None
+            )
+            execution_seconds = 0
+            interval_start = interval_end = None
+            for start, end in intervals:
+                if interval_start is None:
+                    interval_start, interval_end = start, end
+                elif start <= interval_end:
+                    interval_end = max(interval_end, end)
+                else:
+                    execution_seconds += interval_end - interval_start
+                    interval_start, interval_end = start, end
+            if interval_start is not None:
+                execution_seconds += interval_end - interval_start
+            reconciling_seconds = 0
+            status_history = detail["status_history"]
+            for index, entry in enumerate(status_history):
+                if entry["status"] == "reconciling":
+                    end = status_history[index + 1]["created"] if index + 1 < len(status_history) else (detail["finished"] or now)
+                    reconciling_seconds += max(0, end - entry["created"])
+            detail["execution_seconds"] = execution_seconds if execution_timing_complete else None
+            detail["reconciliation_seconds"] = reconciling_seconds
+            detail["waiting_seconds"] = (
+                max(0, detail["run_seconds"] - execution_seconds - reconciling_seconds)
+                if detail["run_seconds"] is not None and execution_timing_complete else None
+            )
             detail["artifacts"] = [
                 dict(row)
                 for row in db.execute(

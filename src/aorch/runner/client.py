@@ -334,6 +334,17 @@ class Runner:
             "lease_id": assignment["lease_id"],
             "generation": assignment["generation"],
         }
+
+        async def report_timing(sequence, kind):
+            try:
+                await self.post(
+                    "/runner/events",
+                    {**identity, "sequence": sequence, "payload": {"kind": kind}},
+                )
+            except httpx.HTTPError:
+                # Timing data must not prevent a workflow step from running.
+                pass
+
         cancelled = asyncio.Event()
         lease_lost = False
 
@@ -366,6 +377,7 @@ class Runner:
                         status="cancelled", summary="Stopped before workspace execution"
                     )
                 else:
+                    await report_timing(1, "step.started")
                     result = await execute(
                         assignment, self.config, self.journal, cancelled
                     )
@@ -379,6 +391,7 @@ class Runner:
             cancelled.set()
             renewal.cancel()
             await asyncio.gather(renewal, return_exceptions=True)
+        await report_timing(2, "step.completed")
         result = self.redact(result, package, assignment)
         if assignment["step"]["type"] == "agent":
             for key in ("events", "agent_events", "stderr"):
@@ -421,7 +434,7 @@ class Runner:
         try:
             await self.post(
                 "/runner/events",
-                {**identity, "sequence": 1, "payload": {"summary": result.summary}},
+                {**identity, "sequence": 3, "payload": {"summary": result.summary}},
             )
             await self.post(
                 "/runner/result",

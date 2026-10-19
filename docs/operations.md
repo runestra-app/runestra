@@ -92,6 +92,14 @@ a request to delete matching runner logs; offline runner logs expire under their
 retention policy. Runner workspaces remain on disk. Cancel and confirm the stop
 of an active run before deleting it.
 
+The run list shows total elapsed time from queueing to completion. Run details
+separate execution time from waiting for a runner, resources or approval, and
+from reconciliation after an interrupted attempt. Overlapping steps count once
+in execution time. For older runs, total duration is reconstructed when saved
+events include a reliable completion time. Execution and waiting breakdowns
+show as unavailable when the older run does not contain the timestamps needed
+to distinguish them.
+
 To use installed agent CLIs, add their adapter names to `runner.yaml`. For API
 authentication, configure `api_credentials` with provider to environment variable
 mappings, export those variables for the runner process, and set the agent profile

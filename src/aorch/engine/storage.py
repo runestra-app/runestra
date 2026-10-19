@@ -73,6 +73,54 @@ class Store(RuntimeStore):
         self.migrate_webhook_deliveries()
         self.migrate_notification_targets()
         self.migrate_notification_preferences()
+        self.migrate_run_timing()
+
+    def migrate_run_timing(self):
+        with self.transaction() as db:
+            version = db.execute("PRAGMA user_version").fetchone()[0]
+            if version < 18:
+                db.execute("ALTER TABLE runs ADD COLUMN finished REAL")
+                db.execute("CREATE TABLE run_status_history(id INTEGER PRIMARY KEY AUTOINCREMENT,run TEXT NOT NULL,status TEXT NOT NULL,created REAL NOT NULL)")
+                db.execute("CREATE INDEX run_status_history_run ON run_status_history(run,created,id)")
+                rows = db.execute("SELECT id,status,created FROM runs ORDER BY created,id").fetchall()
+                for row in rows:
+                    history = [(row["created"], "queued")]
+                    events = db.execute("SELECT kind,payload,created FROM events WHERE run=? ORDER BY id", (row["id"],)).fetchall()
+                    for event in events:
+                        status = {
+                            "run.queued": "queued",
+                            "run.running": "running",
+                            "step.claimed": "running",
+                            "run.reconciling": "reconciling",
+                            "approval.requested": "waiting_approval",
+                            "run.succeeded": "succeeded",
+                            "run.failed": "failed",
+                            "condition.failed": "failed",
+                            "approval.invalid": "failed",
+                            "run.cancelled": "cancelled",
+                            "run.needs_input": "needs_input",
+                            "run.needs_attention": "needs_attention",
+                            "approval.expired": "needs_attention",
+                        }.get(event["kind"])
+                        if event["kind"] == "run.resolved":
+                            try:
+                                status = json.loads(event["payload"] or "{}").get("status")
+                            except (TypeError, ValueError):
+                                status = None
+                        elif event["kind"] == "attempt.stopped":
+                            status = row["status"] if row["status"] in ("cancelled", "needs_attention") else None
+                        if status:
+                            history.append((event["created"], status))
+                    db.executemany("INSERT INTO run_status_history(run,status,created) VALUES(?,?,?)", [(row["id"], status, created) for created, status in history])
+                    terminal = [created for created, status in history if status in ("succeeded", "failed", "cancelled", "needs_input", "needs_attention")]
+                    if row["status"] in ("succeeded", "failed", "cancelled", "needs_input", "needs_attention") and terminal:
+                        db.execute("UPDATE runs SET finished=? WHERE id=?", (terminal[-1], row["id"]))
+                db.execute("""CREATE TRIGGER run_status_history_update AFTER UPDATE OF status ON runs
+                    WHEN OLD.status != NEW.status BEGIN
+                      INSERT INTO run_status_history(run,status,created) VALUES(NEW.id,NEW.status,(julianday('now')-2440587.5)*86400.0);
+                      UPDATE runs SET finished=CASE WHEN NEW.status IN ('succeeded','failed','cancelled','needs_input','needs_attention') THEN (julianday('now')-2440587.5)*86400.0 ELSE NULL END WHERE id=NEW.id;
+                    END""")
+                db.execute("PRAGMA user_version=18")
 
     def migrate_approval_runs(self):
         with self.transaction() as db:
@@ -768,6 +816,7 @@ class Store(RuntimeStore):
                 (run, f"failure__{name}", "skipped"),
             )
         self._event(db, run, "run.queued")
+        db.execute("INSERT INTO run_status_history(run,status,created) VALUES(?,?,?)", (run, "queued", time.time()))
         return run
 
     def enqueue(self, project: str, workflow: str, inputs: dict | None = None):
@@ -1708,6 +1757,7 @@ class Store(RuntimeStore):
         db.execute("DELETE FROM attempts WHERE run=?", (run,))
         db.execute("DELETE FROM steps WHERE run=?", (run,))
         db.execute("DELETE FROM events WHERE run=?", (run,))
+        db.execute("DELETE FROM run_status_history WHERE run=?", (run,))
         db.execute("DELETE FROM affinity WHERE run=?", (run,))
         db.execute("DELETE FROM runs WHERE id=?", (run,))
         return paths
@@ -1844,6 +1894,7 @@ class Store(RuntimeStore):
                 placeholders = ",".join("?" for _ in runs)
                 db.execute(f"DELETE FROM steps WHERE run IN ({placeholders})", runs)
                 db.execute(f"DELETE FROM events WHERE run IN ({placeholders})", runs)
+                db.execute(f"DELETE FROM run_status_history WHERE run IN ({placeholders})", runs)
                 db.execute(f"DELETE FROM affinity WHERE run IN ({placeholders})", runs)
                 db.execute(f"DELETE FROM effects WHERE run IN ({placeholders})", runs)
                 db.execute(
